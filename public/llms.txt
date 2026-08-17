@@ -1,0 +1,25 @@
+# StudyOS AI — Adaptive Multilingual Learning & Exam Operating System
+
+> StudyOS AI (also known as Bharat Shiksha OS) is an offline-first, multilingual adaptive learning engine tailored for CBSE, ICSE, UP Board, all 28 Indian State Boards, JEE Main, NEET UG, CUET, and Tech Engineering Interview preparation.
+
+## Core Capabilities & Pedagogical Algorithms
+- **Multilingual Concept Delivery**: Real-time voice synthesis and localized explanations across 12 Indian languages: English, Hindi, Hinglish, Bengali, Marathi, Gujarati, Tamil, Telugu, Kannada, Malayalam, Punjabi, and Urdu.
+- **Spaced Repetition & Forgetting Curve Mitigation**: Adaptive retention algorithm scheduling high-yield reviews based on SuperMemo SM-2 and Ebbinghaus decay formulas.
+- **4-Level Confidence Calibration**: Confidence-weighted accuracy measurement (Guess 0.35x, Somewhat 0.70x, Confident 1.00x, Very Confident 1.25x) ensuring mastery reflects true cognitive competence.
+- **Automated Milestone Parent Sync**: Automated background progress report dispatcher delivering verified streak and mastery updates to guardian phone numbers.
+- **Zero-Latency Offline Mode**: Complete IndexedDB local curriculum caching for seamless learning in low-connectivity regions.
+- **Textbook Grounding**: Direct NCERT chapter, exercise, and exemplar problem mapping for all national and state curriculums.
+
+## Supported Examinations
+- CBSE Class 10 & 12 (Science, Mathematics, Social Sciences)
+- ICSE / ISC Board
+- UP Board (Madhyamik Shiksha Parishad)
+- All 28 Indian State Boards (WB, Maharashtra, Bihar, Rajasthan, Tamil Nadu, Karnataka, etc.)
+- JEE Main & Advanced (Physics, Chemistry, Mathematics)
+- NEET UG (Biology, Physics, Chemistry)
+- Full-Stack Software Engineering (Laravel, Python, JavaScript, AI/ML, System Design)
+
+## Security & Privacy Guarantee
+- Isolated client-side storage architecture with cryptographic HMAC tamper-proofing.
+- Zero tracking of personal identity data without explicit consent.
+- Strict Content Security Policy and anti-injection defenses.

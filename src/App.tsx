@@ -1,0 +1,531 @@
+import React, { useState, useEffect } from 'react';
+import {
+  UserProfile,
+  ConceptMastery,
+  StudentDNA,
+  LanguageCode,
+  ExamCategory,
+  StudentAccount,
+  GoalCategory,
+  EducationBoard,
+  TechTrack,
+  DeveloperLevel,
+} from './types';
+import {
+  loadStudentAccounts,
+  getActiveStudentId,
+  setActiveStudentId,
+  createStudentAccount,
+  deleteStudentAccount,
+  loadUserProfile,
+  saveUserProfile,
+  loadConceptMasteries,
+  saveConceptMasteries,
+  loadStudentDNA,
+  saveStudentDNA,
+  loadQuestionAttempts,
+  initializeOfflineCache,
+  loginOrRegisterWithGoogle,
+  checkAndDispatchPeriodicParentReport,
+} from './services/storageService';
+import { calculateConfidenceWeightedAccuracy } from './utils/masteryCalculator';
+import { Navbar } from './components/layout/Navbar';
+import { StudyOSHomeView } from './components/home/StudyOSHomeView';
+import { DailyMissionView } from './components/dashboard/DailyMissionView';
+import { InteractiveLessonView } from './components/learning/InteractiveLessonView';
+import { InteractivePracticeView } from './components/practice/InteractivePracticeView';
+import { SpacedRepetitionView } from './components/revision/SpacedRepetitionView';
+import { MockTestSimulator } from './components/exam/MockTestSimulator';
+import { ExamReadinessView } from './components/exam/ExamReadinessView';
+import { StudentDNAView } from './components/dashboard/StudentDNAView';
+import { CareerRoadmapView } from './components/career/CareerRoadmapView';
+import { ParentDashboardView } from './components/parent/ParentDashboardView';
+import { TechInterviewPrepView } from './components/devprep/TechInterviewPrepView';
+import { AICoachDrawer } from './components/common/AICoachDrawer';
+import { GoogleAuthModal } from './components/auth/GoogleAuthModal';
+import { AccountPrivacyModal } from './components/auth/AccountPrivacyModal';
+import { ParentMobileReportModal } from './components/parent/ParentMobileReportModal';
+import { ParentMobileRequiredModal } from './components/parent/ParentMobileRequiredModal';
+import { SocialShareModal } from './components/common/SocialShareModal';
+import { WifiOff, Zap } from 'lucide-react';
+
+export default function App() {
+  // Private Student ID & Active Session
+  const [activeStudentId, setActiveId] = useState<string>(() => getActiveStudentId());
+
+  // Isolated Per-Student Data States
+  const [profile, setProfile] = useState<UserProfile>(() => loadUserProfile(activeStudentId));
+  const [masteries, setMasteries] = useState<Record<string, ConceptMastery>>(() =>
+    loadConceptMasteries(activeStudentId)
+  );
+  const [dna, setDna] = useState<StudentDNA>(() => loadStudentDNA(activeStudentId));
+  const [currentTab, setCurrentTab] = useState<string>('home');
+  const [isAICoachOpen, setIsAICoachOpen] = useState(false);
+  const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
+  const [isGoogleAuthOpen, setIsGoogleAuthOpen] = useState<boolean>(false);
+  const [isAccountPrivacyOpen, setIsAccountPrivacyOpen] = useState<boolean>(false);
+  const [isParentReportOpen, setIsParentReportOpen] = useState<boolean>(false);
+  const [isParentMobileRequiredOpen, setIsParentMobileRequiredOpen] = useState<boolean>(false);
+  const [pendingLearningTab, setPendingLearningTab] = useState<string | null>(null);
+  const [isSocialShareOpen, setIsSocialShareOpen] = useState<boolean>(false);
+
+  // Initialize offline content caching & monitor browser online/offline status
+  useEffect(() => {
+    initializeOfflineCache();
+
+    const handleOnline = () => setIsOfflineMode(false);
+    const handleOffline = () => setIsOfflineMode(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setIsOfflineMode(true);
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Background Service: Automated periodic performance reporting to registered parent phone
+  useEffect(() => {
+    // Non-intrusive periodic background worker every 60 seconds
+    const interval = setInterval(() => {
+      if (profile.autoSendReportsToParent && profile.parentPhone) {
+        checkAndDispatchPeriodicParentReport(activeStudentId);
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [profile.autoSendReportsToParent, profile.parentPhone, activeStudentId]);
+
+  // Google / Gmail Login Integration
+  const handleGoogleLoginSuccess = (email: string, name: string, picture?: string) => {
+    const account = loginOrRegisterWithGoogle(email, name, picture);
+    setActiveId(account.id);
+    const nextProfile = loadUserProfile(account.id);
+    const nextMasteries = loadConceptMasteries(account.id);
+    const nextDna = loadStudentDNA(account.id);
+
+    setProfile(nextProfile);
+    setMasteries(nextMasteries);
+    setDna(nextDna);
+  };
+
+  const handleSignOutGoogle = () => {
+    const updated: UserProfile = {
+      ...profile,
+      authProvider: 'guest',
+      googleProfile: undefined,
+    };
+    setProfile(updated);
+    saveUserProfile(updated, activeStudentId);
+    setIsGoogleAuthOpen(false);
+  };
+
+  // Sync state changes to storage for active student
+  const handleUpdateLanguage = (lang: LanguageCode) => {
+    const updated = { ...profile, preferredLanguage: lang };
+    setProfile(updated);
+    saveUserProfile(updated, activeStudentId);
+  };
+
+  // Goal & Board confirmation from Homepage Wizard
+  const handleConfirmGoal = (updates: {
+    goalCategory: GoalCategory;
+    selectedExam: ExamCategory;
+    selectedBoard?: EducationBoard;
+    selectedTechTrack?: TechTrack;
+    developerLevel?: DeveloperLevel;
+    preferredLanguage: LanguageCode;
+    autoSendReportsToParent?: boolean;
+    parentPhone?: string;
+    parentName?: string;
+  }) => {
+    const updated: UserProfile = {
+      ...profile,
+      goalCategory: updates.goalCategory,
+      selectedExam: updates.selectedExam,
+      selectedBoard: updates.selectedBoard,
+      selectedTechTrack: updates.selectedTechTrack,
+      developerLevel: updates.developerLevel,
+      preferredLanguage: updates.preferredLanguage,
+      isGoalConfirmed: true, // Mark goal as explicitly selected and confirmed by student
+      autoSendReportsToParent: updates.autoSendReportsToParent ?? profile.autoSendReportsToParent ?? true,
+      parentPhone: updates.parentPhone || profile.parentPhone,
+      parentName: updates.parentName || profile.parentName,
+    };
+    setProfile(updated);
+    saveUserProfile(updated, activeStudentId);
+  };
+
+  const handleUpdateMasteries = (updatedMasteries: Record<string, ConceptMastery>) => {
+    // Retrieve question attempts to calculate 4-level confidence-weighted accuracy
+    const attempts = loadQuestionAttempts(activeStudentId);
+    
+    // Evaluate mastery state based on high-confidence correctness
+    const processedMasteries: Record<string, ConceptMastery> = {};
+    for (const [conceptId, mastery] of Object.entries(updatedMasteries)) {
+      const conceptAttempts = attempts.filter((a) => a.conceptId === conceptId);
+      const highConfidenceCorrect = conceptAttempts.filter(
+        (a) => a.isCorrect && (a.confidence === 'very_confident' || a.confidence === 'confident')
+      ).length;
+
+      // Ensure that a concept reaches 'MASTERED' (>= 90%) only when validated by high-confidence correct answers
+      let refinedState = mastery.state;
+      let refinedMastery = mastery.overallMastery;
+
+      if (refinedMastery >= 90) {
+        if (highConfidenceCorrect >= 1 || conceptAttempts.length === 0) {
+          refinedState = 'MASTERED';
+        } else {
+          // If 90% reached only by low confidence/guessing, cap at 85% until high-confidence test passed
+          refinedMastery = 85;
+          refinedState = 'IMPROVING';
+        }
+      }
+
+      processedMasteries[conceptId] = {
+        ...mastery,
+        overallMastery: refinedMastery,
+        state: refinedState,
+      };
+    }
+
+    setMasteries(processedMasteries);
+    saveConceptMasteries(processedMasteries, activeStudentId);
+
+    // Calculate confidence-weighted accuracy using 4-level confidence weights
+    const allAttemptsCount = Object.values(processedMasteries).reduce(
+      (sum, m) => sum + m.totalAttempts,
+      0
+    );
+    const correctAttemptsCount = Object.values(processedMasteries).reduce(
+      (sum, m) => sum + m.correctAttempts,
+      0
+    );
+
+    const confidenceWeightedAccuracy =
+      attempts.length > 0
+        ? calculateConfidenceWeightedAccuracy(attempts)
+        : allAttemptsCount > 0
+        ? Math.round((correctAttemptsCount / allAttemptsCount) * 100)
+        : dna.questionAccuracy;
+
+    // High-confidence accuracy ratio specifically for student cognitive DNA
+    const highConfAttempts = attempts.filter(
+      (a) => a.confidence === 'very_confident' || a.confidence === 'confident'
+    );
+    const highConfAccuracy =
+      highConfAttempts.length > 0
+        ? Math.round(
+            (highConfAttempts.filter((a) => a.isCorrect).length / highConfAttempts.length) * 100
+          )
+        : confidenceWeightedAccuracy;
+
+    const updatedDna: StudentDNA = {
+      ...dna,
+      totalQuestionsSolved: Math.max(dna.totalQuestionsSolved, allAttemptsCount),
+      questionAccuracy: confidenceWeightedAccuracy,
+      conceptRetention: Math.round(
+        (confidenceWeightedAccuracy * 0.6 + highConfAccuracy * 0.4 + dna.memoryStrength) / 2
+      ),
+      examReadiness: Math.min(
+        100,
+        Math.round(confidenceWeightedAccuracy * 0.5 + highConfAccuracy * 0.3 + (dna.examReadiness || 75) * 0.2)
+      ),
+    };
+    setDna(updatedDna);
+    saveStudentDNA(updatedDna, activeStudentId);
+  };
+
+  // Enforce Parent Mobile Number check before starting learning modules
+  const handleNavigateWithParentCheck = (targetTab: string) => {
+    if (profile.activeRole === 'parent' && targetTab !== 'parent') {
+      const updated = { ...profile, activeRole: 'student' as const };
+      setProfile(updated);
+      saveUserProfile(updated, activeStudentId);
+    }
+
+    const learningTabs = ['learn', 'practice', 'revision', 'mock_exam', 'dev_prep', 'mission'];
+    const cleanDigits = (profile.parentPhone || '').replace(/\D/g, '');
+    const hasValidParentPhone = cleanDigits.length >= 10;
+
+    if (learningTabs.includes(targetTab) && !hasValidParentPhone) {
+      setPendingLearningTab(targetTab);
+      setIsParentMobileRequiredOpen(true);
+      return;
+    }
+
+    setCurrentTab(targetTab);
+  };
+
+  const handleConfirmParentMobile = (
+    phone: string,
+    name: string,
+    language: LanguageCode
+  ) => {
+    const updated: UserProfile = {
+      ...profile,
+      parentPhone: phone,
+      parentName: name,
+      parentPreferredLanguage: language,
+      parentMobileVerified: true,
+      autoSendReportsToParent: true,
+    };
+    setProfile(updated);
+    saveUserProfile(updated, activeStudentId);
+    setIsParentMobileRequiredOpen(false);
+
+    // Transition immediately to the learning tab student wanted to open
+    const target = pendingLearningTab || 'learn';
+    setPendingLearningTab(null);
+    setCurrentTab(target);
+  };
+
+  const handleToggleRole = () => {
+    const nextRole = profile.activeRole === 'student' ? 'parent' : 'student';
+    const updated = { ...profile, activeRole: nextRole };
+    setProfile(updated);
+    saveUserProfile(updated, activeStudentId);
+    if (nextRole === 'parent') {
+      setCurrentTab('parent');
+    } else {
+      setCurrentTab('mission');
+    }
+  };
+
+  const handleSwitchToStudentMode = () => {
+    const updated: UserProfile = { ...profile, activeRole: 'student' };
+    setProfile(updated);
+    saveUserProfile(updated, activeStudentId);
+    setCurrentTab('mission');
+  };
+
+  const toggleOfflineSimulation = () => {
+    setIsOfflineMode((prev) => !prev);
+  };
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans antialiased flex flex-col selection:bg-amber-500 selection:text-zinc-950">
+      {/* Offline Mode Banner */}
+      {isOfflineMode && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 px-4 py-1.5 text-xs font-mono flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate">
+              <strong>Offline Mode Active:</strong> NCERT textbook problems, flashcards, diagnostic checks & TTS run locally with zero latency.
+            </span>
+          </div>
+          <button
+            onClick={toggleOfflineSimulation}
+            className="text-[11px] underline hover:text-amber-200 shrink-0 ml-2"
+          >
+            Online Mode
+          </button>
+        </div>
+      )}
+
+      {/* Universal Top Navigation Header */}
+      <Navbar
+        currentTab={currentTab}
+        onSelectTab={handleNavigateWithParentCheck}
+        profile={profile}
+        onUpdateLanguage={handleUpdateLanguage}
+        onToggleRole={handleToggleRole}
+        onOpenAITutor={() => setIsAICoachOpen(true)}
+        onOpenAccountPrivacy={() => setIsAccountPrivacyOpen(true)}
+        onToggleOfflineMode={toggleOfflineSimulation}
+        isOfflineMode={isOfflineMode}
+        onOpenGoogleAuth={() => setIsGoogleAuthOpen(true)}
+        onOpenParentReport={() => setIsParentReportOpen(true)}
+        onOpenSocialShare={() => setIsSocialShareOpen(true)}
+      />
+
+      {/* Main Content Workspace (Adaptive across Mobile, Tablet, Desktop) */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+        {profile.activeRole === 'parent' || currentTab === 'parent' ? (
+          <ParentDashboardView
+            language={profile.preferredLanguage}
+            profile={profile}
+            dna={dna}
+            masteries={masteries}
+            onSwitchToStudentMode={handleSwitchToStudentMode}
+            onUpdateProfile={(up) => {
+              setProfile(up);
+              saveUserProfile(up, activeStudentId);
+            }}
+          />
+        ) : (
+          <>
+            {currentTab === 'home' && (
+              <StudyOSHomeView
+                language={profile.preferredLanguage}
+                profile={profile}
+                onConfirmGoal={handleConfirmGoal}
+                onNavigateTab={handleNavigateWithParentCheck}
+              />
+            )}
+
+            {currentTab === 'mission' && (
+              <DailyMissionView
+                language={profile.preferredLanguage}
+                profile={profile}
+                dna={dna}
+                masteries={masteries}
+                onNavigateTab={handleNavigateWithParentCheck}
+              />
+            )}
+
+            {currentTab === 'learn' && (
+              <InteractiveLessonView
+                language={profile.preferredLanguage}
+                profile={profile}
+                masteries={masteries}
+                onNavigateToPractice={(chapterId) => handleNavigateWithParentCheck('practice')}
+                onNavigateToRevision={() => handleNavigateWithParentCheck('revision')}
+              />
+            )}
+
+            {currentTab === 'practice' && (
+              <InteractivePracticeView
+                language={profile.preferredLanguage}
+                profile={profile}
+                masteries={masteries}
+                onUpdateMasteries={handleUpdateMasteries}
+              />
+            )}
+
+            {currentTab === 'revision' && (
+              <SpacedRepetitionView
+                language={profile.preferredLanguage}
+                profile={profile}
+              />
+            )}
+
+            {currentTab === 'mock_exam' && (
+              <MockTestSimulator
+                language={profile.preferredLanguage}
+                profile={profile}
+              />
+            )}
+
+            {currentTab === 'readiness' && (
+              <ExamReadinessView
+                language={profile.preferredLanguage}
+                profile={profile}
+                dna={dna}
+                masteries={masteries}
+                onNavigateToPractice={() => handleNavigateWithParentCheck('practice')}
+              />
+            )}
+
+            {currentTab === 'dev_prep' && (
+              <TechInterviewPrepView
+                language={profile.preferredLanguage}
+                profile={profile}
+              />
+            )}
+
+            {currentTab === 'dna' && (
+              <StudentDNAView
+                language={profile.preferredLanguage}
+                profile={profile}
+                dna={dna}
+              />
+            )}
+
+            {currentTab === 'career' && (
+              <CareerRoadmapView language={profile.preferredLanguage} />
+            )}
+          </>
+        )}
+      </main>
+
+      {/* AI Socratic Coach Floating Drawer */}
+      <AICoachDrawer
+        isOpen={isAICoachOpen}
+        onClose={() => setIsAICoachOpen(false)}
+        language={profile.preferredLanguage}
+      />
+
+      {/* Student Private Account & Data Isolation Modal */}
+      <AccountPrivacyModal
+        isOpen={isAccountPrivacyOpen}
+        onClose={() => setIsAccountPrivacyOpen(false)}
+        profile={profile}
+        onUpdateProfile={(updated) => {
+          setProfile(updated);
+          saveUserProfile(updated, activeStudentId);
+        }}
+        onOpenGoogleAuth={() => setIsGoogleAuthOpen(true)}
+      />
+
+      {/* Google / Gmail Authentication Modal */}
+      <GoogleAuthModal
+        isOpen={isGoogleAuthOpen}
+        onClose={() => setIsGoogleAuthOpen(false)}
+        profile={profile}
+        onGoogleLoginSuccess={handleGoogleLoginSuccess}
+        onSignOut={handleSignOutGoogle}
+      />
+
+      {/* Parent Mobile Report Dispatch Modal */}
+      <ParentMobileReportModal
+        isOpen={isParentReportOpen}
+        onClose={() => setIsParentReportOpen(false)}
+        profile={profile}
+        dna={dna}
+        masteries={masteries}
+        onUpdateParentPhone={(phone, name, language) => {
+          const up: UserProfile = {
+            ...profile,
+            parentPhone: phone,
+            parentName: name,
+            parentPreferredLanguage: language || profile.parentPreferredLanguage || profile.preferredLanguage,
+            parentMobileVerified: true,
+          };
+          setProfile(up);
+          saveUserProfile(up, activeStudentId);
+        }}
+      />
+
+      {/* Mandatory Parent Mobile Registration Before Learning */}
+      <ParentMobileRequiredModal
+        isOpen={isParentMobileRequiredOpen}
+        onClose={() => {
+          setIsParentMobileRequiredOpen(false);
+          if (pendingLearningTab) {
+            setCurrentTab(pendingLearningTab);
+            setPendingLearningTab(null);
+          }
+        }}
+        onConfirm={handleConfirmParentMobile}
+        profile={profile}
+        dna={dna}
+        masteries={masteries}
+        targetActionLabel={
+          pendingLearningTab === 'learn'
+            ? 'Interactive Lesson'
+            : pendingLearningTab === 'practice'
+            ? 'NCERT Practice Drill'
+            : pendingLearningTab === 'revision'
+            ? 'Spaced Revision'
+            : pendingLearningTab === 'mock_exam'
+            ? 'Mock Test'
+            : 'Learning Modules'
+        }
+      />
+
+      {/* Multi-Platform Social Share Modal */}
+      <SocialShareModal
+        isOpen={isSocialShareOpen}
+        onClose={() => setIsSocialShareOpen(false)}
+        profile={profile}
+        dna={dna}
+      />
+    </div>
+  );
+}
