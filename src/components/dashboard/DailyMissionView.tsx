@@ -13,9 +13,13 @@ import {
   ShieldAlert,
   ChevronRight,
   TrendingUp,
+  Shield,
+  Award,
+  Calendar,
 } from 'lucide-react';
 import { ConceptMastery, DailyMission, LanguageCode, StudentDNA, UserProfile } from '../../types';
 import { getLocalizedText } from '../../data/languages';
+import { getStreakModifier } from '../../utils/masteryCalculator';
 
 interface DailyMissionViewProps {
   language: LanguageCode;
@@ -32,6 +36,10 @@ export const DailyMissionView: React.FC<DailyMissionViewProps> = ({
   masteries,
   onNavigateTab,
 }) => {
+  const currentStreakDays = dna.consistencyStreak || profile.streakDays || 7;
+  const streakInfo = getStreakModifier(currentStreakDays);
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   const missionTasks = [
     {
       id: 'task_learn',
@@ -116,6 +124,81 @@ export const DailyMissionView: React.FC<DailyMissionViewProps> = ({
               <span className="text-[10px] text-zinc-400 block font-mono">Exam Readiness</span>
               <span className="text-lg font-bold text-emerald-400 font-mono">78%</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Visual Daily Streak Counter & Cognitive Multiplier Card */}
+      <div className="bg-gradient-to-r from-orange-950/40 via-zinc-900 to-amber-950/30 border border-orange-500/30 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400 shadow-inner relative">
+              <Flame className="w-6 h-6 animate-bounce" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-orange-500 animate-ping" />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-extrabold text-zinc-100 font-sans flex items-center gap-1.5">
+                  <span>{streakInfo.streakDays}-Day Study Streak!</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 font-mono font-bold border border-orange-500/40">
+                    🔥 {streakInfo.streakMultiplier}x Cognitive DNA Boost
+                  </span>
+                </h3>
+              </div>
+              <p className="text-xs text-zinc-300">
+                You've studied consistently for {streakInfo.streakDays} consecutive days. Your memory retention and speed index receive a <strong className="text-orange-300">+{streakInfo.cognitiveBoostPercent}% modifier</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800 text-xs font-mono text-zinc-300">
+              <Shield className="w-3.5 h-3.5 text-blue-400" />
+              <span>{streakInfo.freezeShieldsRemaining} Freeze Shield{streakInfo.freezeShieldsRemaining !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 7-Day Weekly Streak Roadmap Dots */}
+        <div className="pt-2 border-t border-zinc-800/80">
+          <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {weekDays.map((day, idx) => {
+              const isActive = streakInfo.weeklyDaysActive[idx];
+              const isToday = idx === (new Date().getDay() === 0 ? 6 : new Date().getDay() - 1);
+              return (
+                <div
+                  key={day}
+                  className={`flex-1 min-w-[50px] p-2.5 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
+                    isActive
+                      ? 'bg-orange-500/10 border-orange-500/40 text-orange-300 shadow-xs'
+                      : 'bg-zinc-950/60 border-zinc-800 text-zinc-400'
+                  } ${isToday ? 'ring-2 ring-orange-500/60' : ''}`}
+                >
+                  <span className="text-[10px] font-mono font-bold">{day}</span>
+                  {isActive ? (
+                    <div className="w-5 h-5 rounded-full bg-orange-500 text-zinc-950 flex items-center justify-center text-[10px] font-black">
+                      ✓
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-zinc-800 text-zinc-400 flex items-center justify-center text-[10px]">
+                      •
+                    </div>
+                  )}
+                  <span className="text-[9px] font-mono text-zinc-300">
+                    {isToday ? 'Today' : isActive ? 'Done' : 'Upcoming'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-[11px] font-mono text-zinc-400 bg-zinc-950/60 px-3 py-2 rounded-lg border border-zinc-800/60">
+            <span className="flex items-center gap-1.5 text-amber-300">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Next Milestone: {streakInfo.nextMilestoneReward}</span>
+            </span>
+            <span className="text-zinc-300 hidden sm:inline">Keep going to unlock Diamond Trophy!</span>
           </div>
         </div>
       </div>

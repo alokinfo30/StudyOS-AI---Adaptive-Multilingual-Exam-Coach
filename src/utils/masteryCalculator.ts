@@ -202,11 +202,12 @@ export function classifyErrorType(
 }
 
 /**
- * Updates Student Learning DNA from all recorded attempts
+ * Updates Student Learning DNA from all recorded attempts and incorporates Streak Multiplier
  */
 export function calculateStudentDNA(
   attempts: QuestionAttempt[],
-  existingDNA: StudentDNA
+  existingDNA: StudentDNA,
+  streakDays: number = existingDNA.consistencyStreak || 1
 ): StudentDNA {
   if (attempts.length === 0) return existingDNA;
 
@@ -227,17 +228,59 @@ export function calculateStudentDNA(
   const speedRatios = attempts.map((a) => (a.timeSpentSec <= 75 ? 90 : 60));
   const timeManagement = Math.round(speedRatios.reduce((acc, v) => acc + v, 0) / attempts.length);
 
+  // Daily Streak Modifier: 1.0x (Day 0) to 1.50x (Day 10+)
+  // Adds a cognitive velocity boost for consistent daily study habits
+  const streakBoost = Math.min(streakDays * 0.04, 0.45); // up to +45%
+  const boostedProblemSolving = Math.min(Math.round(accuracy * 0.88 + 10 + streakBoost * 12), 100);
+  const boostedLearningSpeed = Math.min(Math.max(Math.round(timeManagement * (1 + streakBoost * 0.15)), 50), 98);
+
   return {
     ...existingDNA,
     questionAccuracy: accuracy,
     calculationAccuracy: calcAccuracy,
     memoryStrength,
     conceptRetention: Math.round((accuracy + memoryStrength) / 2),
-    learningSpeed: Math.min(Math.max(timeManagement, 50), 95),
-    problemSolvingIndex: Math.round(accuracy * 0.9 + 8),
+    learningSpeed: boostedLearningSpeed,
+    problemSolvingIndex: boostedProblemSolving,
     timeManagement,
+    consistencyStreak: streakDays,
     totalQuestionsSolved: total,
     diagnosticCompleted: true,
+  };
+}
+
+/**
+ * Calculates current daily streak bonus & modifier metadata
+ */
+export function getStreakModifier(streakDays: number = 7) {
+  const safeStreak = Math.max(streakDays, 1);
+  const multiplier = Number((1 + Math.min(safeStreak * 0.05, 0.50)).toFixed(2));
+  const cognitiveBoostPercent = Math.round((multiplier - 1) * 100);
+  const freezeShieldsRemaining = safeStreak >= 7 ? 2 : safeStreak >= 3 ? 1 : 0;
+  
+  // 7-day visual week (Mon-Sun)
+  const currentDayOfWeek = new Date().getDay(); // 0 is Sun, 1 is Mon
+  const normalizedIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1; // 0=Mon, 6=Sun
+  const weeklyDaysActive = [false, false, false, false, false, false, false].map((_, i) => {
+    return i <= normalizedIndex;
+  });
+
+  let nextMilestoneReward = '🔥 3-Day Flame: +15% Focus Agility';
+  if (safeStreak >= 14) {
+    nextMilestoneReward = '👑 21-Day Master: Legendary Platinum Trophy + Streak Shield';
+  } else if (safeStreak >= 7) {
+    nextMilestoneReward = '⚡ 14-Day Streak: +40% Problem-Solving DNA Boost';
+  } else if (safeStreak >= 3) {
+    nextMilestoneReward = '🛡️ 7-Day Streak: Unlock Emergency Freeze Shield + 1.35x Multiplier';
+  }
+
+  return {
+    streakDays: safeStreak,
+    streakMultiplier: multiplier,
+    cognitiveBoostPercent,
+    freezeShieldsRemaining,
+    weeklyDaysActive,
+    nextMilestoneReward,
   };
 }
 

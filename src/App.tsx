@@ -10,6 +10,7 @@ import {
   EducationBoard,
   TechTrack,
   DeveloperLevel,
+  FocusModeState,
 } from './types';
 import {
   loadStudentAccounts,
@@ -47,6 +48,13 @@ import { AccountPrivacyModal } from './components/auth/AccountPrivacyModal';
 import { ParentMobileReportModal } from './components/parent/ParentMobileReportModal';
 import { ParentMobileRequiredModal } from './components/parent/ParentMobileRequiredModal';
 import { SocialShareModal } from './components/common/SocialShareModal';
+import { FocusModeOverlay } from './components/common/FocusModeOverlay';
+import { SelfHealingDashboardModal } from './components/devprep/SelfHealingDashboardModal';
+import { initializeSelfHealingInterceptor } from './services/selfHealingService';
+import { QuickFormulaOverlay } from './components/learning/QuickFormulaOverlay';
+import { PeerStudyMatch } from './components/social/PeerStudyMatch';
+import { ConceptMindMapView } from './components/learning/ConceptMindMapView';
+import { applyAccentColorToDocument } from './utils/themeUtils';
 import { WifiOff, Zap } from 'lucide-react';
 
 export default function App() {
@@ -68,10 +76,48 @@ export default function App() {
   const [isParentMobileRequiredOpen, setIsParentMobileRequiredOpen] = useState<boolean>(false);
   const [pendingLearningTab, setPendingLearningTab] = useState<string | null>(null);
   const [isSocialShareOpen, setIsSocialShareOpen] = useState<boolean>(false);
+  const [isSelfHealingOpen, setIsSelfHealingOpen] = useState<boolean>(false);
+  const [isFormulaOverlayOpen, setIsFormulaOverlayOpen] = useState<boolean>(false);
+  const [isPeerMatchOpen, setIsPeerMatchOpen] = useState<boolean>(false);
+  const [focusModeState, setFocusModeState] = useState<FocusModeState>({
+    isActive: false,
+    sessionStartTime: 0,
+    activeSessionSeconds: 0,
+    pomodoroMinutes: 25,
+    ambientSoundEnabled: false,
+    ambientSoundType: 'binaural_alpha',
+    blockedDistractionCount: 0,
+  });
+
+  // Apply custom UI accent color across the app dynamically
+  useEffect(() => {
+    applyAccentColorToDocument(profile.accentColor || 'amber');
+  }, [profile.accentColor]);
+
+  // Global keyboard shortcut for Quick Formula Cheat-Sheet (Shift + F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+        e.preventDefault();
+        setIsFormulaOverlayOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const toggleFocusMode = () => {
+    setFocusModeState((prev) => ({
+      ...prev,
+      isActive: !prev.isActive,
+      sessionStartTime: !prev.isActive ? Date.now() : prev.sessionStartTime,
+    }));
+  };
 
   // Initialize offline content caching & monitor browser online/offline status
   useEffect(() => {
     initializeOfflineCache();
+    initializeSelfHealingInterceptor();
 
     const handleOnline = () => setIsOfflineMode(false);
     const handleOffline = () => setIsOfflineMode(true);
@@ -328,24 +374,51 @@ export default function App() {
         </div>
       )}
 
-      {/* Universal Top Navigation Header */}
-      <Navbar
-        currentTab={currentTab}
-        onSelectTab={handleNavigateWithParentCheck}
-        profile={profile}
-        onUpdateLanguage={handleUpdateLanguage}
-        onToggleRole={handleToggleRole}
-        onOpenAITutor={() => setIsAICoachOpen(true)}
-        onOpenAccountPrivacy={() => setIsAccountPrivacyOpen(true)}
-        onToggleOfflineMode={toggleOfflineSimulation}
-        isOfflineMode={isOfflineMode}
-        onOpenGoogleAuth={() => setIsGoogleAuthOpen(true)}
-        onOpenParentReport={() => setIsParentReportOpen(true)}
-        onOpenSocialShare={() => setIsSocialShareOpen(true)}
-      />
+      {/* Universal Top Navigation Header (or Minimal Focus Mode Header) */}
+      {focusModeState.isActive ? (
+        <FocusModeOverlay
+          focusState={focusModeState}
+          onUpdateFocusState={setFocusModeState}
+          onExitFocusMode={() => setFocusModeState((prev) => ({ ...prev, isActive: false }))}
+          onOpenAICoach={() => setIsAICoachOpen(true)}
+          currentConceptTitle={
+            currentTab === 'learn'
+              ? "Mastering Ohm's Law & Circuit Calculations"
+              : currentTab === 'practice'
+              ? 'NCERT Exemplar Problem Drill'
+              : currentTab === 'revision'
+              ? 'Spaced Repetition Flashcards'
+              : currentTab === 'dev_prep'
+              ? 'Technical Interview Preparation'
+              : 'StudyOS Active Learning Focus'
+          }
+        />
+      ) : (
+        <Navbar
+          currentTab={currentTab}
+          onSelectTab={handleNavigateWithParentCheck}
+          profile={profile}
+          onUpdateLanguage={handleUpdateLanguage}
+          onToggleRole={handleToggleRole}
+          onOpenAITutor={() => setIsAICoachOpen(true)}
+          onOpenAccountPrivacy={() => setIsAccountPrivacyOpen(true)}
+          onToggleOfflineMode={toggleOfflineSimulation}
+          isOfflineMode={isOfflineMode}
+          onOpenGoogleAuth={() => setIsGoogleAuthOpen(true)}
+          onOpenParentReport={() => setIsParentReportOpen(true)}
+          onOpenSocialShare={() => setIsSocialShareOpen(true)}
+          isFocusMode={focusModeState.isActive}
+          onToggleFocusMode={toggleFocusMode}
+          onOpenSelfHealing={() => setIsSelfHealingOpen(true)}
+          onOpenQuickFormulas={() => setIsFormulaOverlayOpen(true)}
+          onOpenPeerMatch={() => setIsPeerMatchOpen(true)}
+        />
+      )}
 
       {/* Main Content Workspace (Adaptive across Mobile, Tablet, Desktop) */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+      <main className={`flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 transition-all ${
+        focusModeState.isActive ? 'bg-zinc-950/90 rounded-2xl my-2 shadow-2xl ring-1 ring-amber-500/20' : ''
+      }`}>
         {profile.activeRole === 'parent' || currentTab === 'parent' ? (
           <ParentDashboardView
             language={profile.preferredLanguage}
@@ -386,7 +459,20 @@ export default function App() {
                 masteries={masteries}
                 onNavigateToPractice={(chapterId) => handleNavigateWithParentCheck('practice')}
                 onNavigateToRevision={() => handleNavigateWithParentCheck('revision')}
+                onOpenQuickFormulas={() => setIsFormulaOverlayOpen(true)}
+                onOpenPeerMatch={() => setIsPeerMatchOpen(true)}
+                onOpenMindMap={() => handleNavigateWithParentCheck('mindmap')}
               />
+            )}
+
+            {currentTab === 'mindmap' && (
+              <div className="space-y-6">
+                <ConceptMindMapView
+                  onSelectConcept={(cid, cname) => {
+                    // Quick inspection or jump
+                  }}
+                />
+              </div>
             )}
 
             {currentTab === 'practice' && (
@@ -525,6 +611,25 @@ export default function App() {
         onClose={() => setIsSocialShareOpen(false)}
         profile={profile}
         dna={dna}
+      />
+
+      {/* Self-Healing Auto-Debugging Pipeline Modal */}
+      <SelfHealingDashboardModal
+        isOpen={isSelfHealingOpen}
+        onClose={() => setIsSelfHealingOpen(false)}
+      />
+
+      {/* Global Quick Formula Cheat-Sheet Overlay (Shift + F) */}
+      <QuickFormulaOverlay
+        isOpen={isFormulaOverlayOpen}
+        onClose={() => setIsFormulaOverlayOpen(false)}
+      />
+
+      {/* 10-Minute Peer Study Match Collaborative Room */}
+      <PeerStudyMatch
+        isOpen={isPeerMatchOpen}
+        onClose={() => setIsPeerMatchOpen(false)}
+        userProfile={profile}
       />
     </div>
   );

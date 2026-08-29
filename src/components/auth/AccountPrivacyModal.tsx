@@ -11,8 +11,11 @@ import {
   LogOut,
   Sparkles,
   Key,
+  Palette,
+  Check,
 } from 'lucide-react';
-import { UserProfile, LanguageCode, ExamCategory, EducationBoard } from '../../types';
+import { UserProfile, LanguageCode, ExamCategory, EducationBoard, CustomAccentColor } from '../../types';
+import { ACCENT_COLOR_PALETTES, applyAccentColorToDocument } from '../../utils/themeUtils';
 
 interface AccountPrivacyModalProps {
   isOpen: boolean;
@@ -32,18 +35,27 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
   const [name, setName] = useState(profile.name);
   const [email, setEmail] = useState(profile.email);
   const [parentPhone, setParentPhone] = useState(profile.parentPhone || '+919876543210');
+  const [selectedAccent, setSelectedAccent] = useState<CustomAccentColor>(profile.accentColor || 'amber');
   const [savedToast, setSavedToast] = useState(false);
 
   if (!isOpen) return null;
 
+  const handleSelectAccent = (color: CustomAccentColor) => {
+    setSelectedAccent(color);
+    applyAccentColorToDocument(color);
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateProfile({
+    const updatedProfile: UserProfile = {
       ...profile,
       name,
       email,
       parentPhone,
-    });
+      accentColor: selectedAccent,
+    };
+    applyAccentColorToDocument(selectedAccent);
+    onUpdateProfile(updatedProfile);
     setSavedToast(true);
     setTimeout(() => {
       setSavedToast(false);
@@ -188,6 +200,54 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
               placeholder="+919876543210"
               className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-100 text-xs font-mono focus:outline-none focus:border-amber-500"
             />
+          </div>
+
+          {/* Custom Accent Color Palette Selector */}
+          <div className="pt-2 border-t border-zinc-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs font-mono uppercase text-zinc-300 font-bold">
+                <Palette className="w-3.5 h-3.5 text-amber-400" />
+                <span>Custom UI Accent Theme</span>
+              </label>
+              <span className="text-[11px] font-mono text-zinc-400">
+                {ACCENT_COLOR_PALETTES[selectedAccent]?.name}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {(Object.keys(ACCENT_COLOR_PALETTES) as CustomAccentColor[]).map((colorKey) => {
+                const palette = ACCENT_COLOR_PALETTES[colorKey];
+                const isSelected = selectedAccent === colorKey;
+                return (
+                  <button
+                    key={colorKey}
+                    type="button"
+                    onClick={() => handleSelectAccent(colorKey)}
+                    className={`p-2 rounded-xl border flex flex-col items-center gap-1.5 transition-all text-center group ${
+                      isSelected
+                        ? 'bg-zinc-800 border-zinc-500 shadow-md ring-2'
+                        : 'bg-zinc-950/80 border-zinc-800/80 hover:bg-zinc-900 hover:border-zinc-700'
+                    }`}
+                    style={{
+                      borderColor: isSelected ? palette.hex : undefined,
+                    }}
+                  >
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center shadow-inner transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: palette.hex }}
+                    >
+                      {isSelected && <Check className="w-3.5 h-3.5 text-black font-extrabold stroke-[3]" />}
+                    </div>
+                    <span className="text-[10px] font-medium text-zinc-300 capitalize truncate w-full">
+                      {colorKey}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-zinc-400 font-sans leading-tight">
+              Selected accent is applied instantly across primary buttons, highlights, badges, and glowing borders.
+            </p>
           </div>
 
           {savedToast && (

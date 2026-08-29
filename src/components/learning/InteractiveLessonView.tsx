@@ -19,6 +19,9 @@ import {
   TrendingUp,
   Target,
   Layers,
+  Calculator,
+  Users,
+  Network,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Chapter, Concept, LanguageCode, UserProfile, ConceptMastery } from '../../types';
@@ -35,6 +38,9 @@ interface InteractiveLessonViewProps {
   masteries?: Record<string, ConceptMastery>;
   onNavigateToPractice: (chapterId: string) => void;
   onNavigateToRevision?: () => void;
+  onOpenQuickFormulas?: () => void;
+  onOpenPeerMatch?: () => void;
+  onOpenMindMap?: () => void;
 }
 
 export const InteractiveLessonView: React.FC<InteractiveLessonViewProps> = ({
@@ -43,6 +49,9 @@ export const InteractiveLessonView: React.FC<InteractiveLessonViewProps> = ({
   masteries = {},
   onNavigateToPractice,
   onNavigateToRevision,
+  onOpenQuickFormulas,
+  onOpenPeerMatch,
+  onOpenMindMap,
 }) => {
   // Select active chapter (default: Ohm's Law & Electricity)
   const currentSubject = CURRICULUM_SUBJECTS[0];
@@ -205,8 +214,46 @@ export const InteractiveLessonView: React.FC<InteractiveLessonViewProps> = ({
             </h1>
           </div>
 
-          {/* Quick Chapter Selector */}
-          <div className="flex items-center gap-2">
+          {/* Quick Chapter Selector & Study Mode Shortcuts */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {onOpenQuickFormulas && (
+              <button
+                type="button"
+                onClick={onOpenQuickFormulas}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 transition-all"
+                title="Open Quick Formula Sheet for this chapter"
+              >
+                <Calculator className="w-3.5 h-3.5 text-amber-400" />
+                <span>Formulas</span>
+              </button>
+            )}
+
+            {onOpenPeerMatch && (
+              <button
+                type="button"
+                onClick={onOpenPeerMatch}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 transition-all"
+                title="Connect with a peer studying this chapter"
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Peer Match</span>
+              </button>
+            )}
+
+            {onOpenMindMap && (
+              <button
+                type="button"
+                onClick={onOpenMindMap}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-blue-300 border border-blue-500/30 flex items-center gap-1.5 transition-all"
+                title="Inspect Concept Mind Map Hierarchy"
+              >
+                <Network className="w-3.5 h-3.5 text-blue-400" />
+                <span>Mind Map</span>
+              </button>
+            )}
+
+            <div className="h-4 w-px bg-zinc-800 hidden sm:block" />
+
             {currentSubject.chapters.map((ch, idx) => (
               <button
                 key={ch.id}

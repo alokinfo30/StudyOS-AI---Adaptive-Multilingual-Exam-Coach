@@ -15,6 +15,12 @@ import {
   Menu,
   X,
   Share2,
+  EyeOff,
+  Maximize2,
+  Cpu,
+  Calculator,
+  Users,
+  Network,
 } from 'lucide-react';
 import {
   LanguageCode,
@@ -38,6 +44,11 @@ interface NavbarProps {
   onOpenGoogleAuth?: () => void;
   onOpenParentReport?: () => void;
   onOpenSocialShare?: () => void;
+  isFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
+  onOpenSelfHealing?: () => void;
+  onOpenQuickFormulas?: () => void;
+  onOpenPeerMatch?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -53,6 +64,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenGoogleAuth,
   onOpenParentReport,
   onOpenSocialShare,
+  isFocusMode = false,
+  onToggleFocusMode,
+  onOpenSelfHealing,
+  onOpenQuickFormulas,
+  onOpenPeerMatch,
 }) => {
   const [isLangModalOpen, setIsLangModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -78,6 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'home', label: '🎯 Switch Exam' },
         { id: 'mission', label: 'Mission' },
         { id: 'learn', label: 'Learn' },
+        { id: 'mindmap', label: '🧠 Mind Map' },
         { id: 'practice', label: 'Practice' },
         { id: 'revision', label: 'Revision' },
         { id: 'mock_exam', label: 'Mock Exam' },
@@ -92,7 +109,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       { id: 'home', label: '🎯 Goal & Board' },
       { id: 'mission', label: 'Mission' },
       { id: 'learn', label: 'Learn' },
-      { id: 'practice', label: '📘 Textbook Practice', highlight: true },
+      { id: 'mindmap', label: '🧠 Mind Map', highlight: true },
+      { id: 'practice', label: '📘 Textbook Practice' },
       { id: 'revision', label: 'Revision' },
       { id: 'mock_exam', label: 'Mock Exam' },
       { id: 'readiness', label: 'Readiness' },
@@ -229,6 +247,46 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="whitespace-nowrap hidden md:inline">{currentLangObj.nativeName}</span>
             </button>
 
+            {/* Global Quick Formula Overlay Trigger */}
+            {onOpenQuickFormulas && (
+              <button
+                onClick={onOpenQuickFormulas}
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-300 hover:text-amber-300 hover:border-amber-500/50 hover:bg-zinc-800 transition-all min-h-[34px]"
+                title="Global Quick Formula Cheat Sheet (Shift + F)"
+              >
+                <Calculator className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-medium whitespace-nowrap">Formulas</span>
+              </button>
+            )}
+
+            {/* Peer Study Match 10-Min Room Trigger */}
+            {onOpenPeerMatch && (
+              <button
+                onClick={onOpenPeerMatch}
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-300 hover:text-emerald-300 hover:border-emerald-500/50 hover:bg-zinc-800 transition-all min-h-[34px]"
+                title="Peer Study Match: 10-Minute Collaborative Room"
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="font-medium whitespace-nowrap">Peer Room</span>
+              </button>
+            )}
+
+            {/* Distraction-Free Focus Mode Trigger */}
+            {onToggleFocusMode && (
+              <button
+                onClick={onToggleFocusMode}
+                className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px] ${
+                  isFocusMode
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-inner'
+                    : 'bg-zinc-900 border-zinc-700/80 text-zinc-300 hover:text-amber-300 hover:border-amber-500/50 hover:bg-zinc-800'
+                }`}
+                title="Toggle Distraction-Free Focus Mode (Dims Background, Hides Non-Essentials)"
+              >
+                <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                <span className="whitespace-nowrap font-medium">Focus</span>
+              </button>
+            )}
+
             {/* Social Share Button */}
             {onOpenSocialShare && (
               <button
@@ -238,6 +296,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Share2 className="w-3.5 h-3.5 text-amber-400" />
                 <span className="font-medium whitespace-nowrap">Share</span>
+              </button>
+            )}
+
+            {/* Self-Healing Auto-Debugging AI SaaS Pipeline Trigger */}
+            {onOpenSelfHealing && (
+              <button
+                onClick={onOpenSelfHealing}
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 min-h-[34px]"
+                title="Open Self-Healing AI Pipeline (Auto-Error Capture, Tri-Agent Debugging & Vitest Verification)"
+              >
+                <Cpu className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span className="whitespace-nowrap font-medium text-emerald-400">Self-Healing</span>
               </button>
             )}
 

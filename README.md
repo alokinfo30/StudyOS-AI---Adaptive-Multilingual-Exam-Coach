@@ -12,17 +12,19 @@
    - [2. Software Developers & Tech Interview Candidates](#2-software-developers--tech-interview-candidates)
    - [3. Parents & Academic Guardians](#3-parents--academic-guardians)
    - [4. Teachers & Subject Matter Mentors](#4-teachers--subject-matter-mentors)
+   - [5. SaaS Engineers & Production DevOps (Self-Healing AI)](#5-saas-engineers--production-devops-self-healing-ai)
 3. [⚡ Core Application Features](#-core-application-features)
    - [A. Interactive Mastery Learning Engine](#a-interactive-mastery-learning-engine)
    - [B. Explain Differently Multi-Pedagogy Studio](#b-explain-differently-multi-pedagogy-studio)
    - [C. Tech Interview Prep & Voice-to-Text Answer Studio](#c-tech-interview-prep--voice-to-text-answer-studio)
-   - [D. Live Code Sandbox & AI Code Reviewer](#d-live-code-sandbox--ai-code-reviewer)
-   - [E. 4-Level Confidence-Weighted Adaptive Practice](#e-4-level-confidence-weighted-adaptive-practice)
-   - [F. Spaced Repetition (SM-2 Algorithm) Flashcards](#f-spaced-repetition-sm-2-algorithm-flashcards)
-   - [G. Strict CBSE Board Mock Exam Environment](#g-strict-cbse-board-mock-exam-environment)
-   - [H. Cognitive DNA & Skill Heatmap Analytics](#h-cognitive-dna--skill-heatmap-analytics)
-   - [I. Parent & Guardian WhatsApp/Email Reporting Engine](#i-parent--guardian-whatsappemail-reporting-engine)
-   - [J. Anti-Tamper Cryptographic Storage & Offline Resilience](#j-anti-tamper-cryptographic-storage--offline-resilience)
+   - [D. Self-Healing (Auto-Debugging) 4-Stage SaaS Pipeline](#d-self-healing-auto-debugging-4-stage-saas-pipeline)
+   - [E. Distraction-Free Focus Mode & Synthesized Audio](#e-distraction-free-focus-mode--synthesized-audio)
+   - [F. 4-Level Confidence-Weighted Adaptive Practice](#f-4-level-confidence-weighted-adaptive-practice)
+   - [G. Spaced Repetition (SM-2 Algorithm) Flashcards](#g-spaced-repetition-sm-2-algorithm-flashcards)
+   - [H. Strict CBSE Board Mock Exam Environment](#h-strict-cbse-board-mock-exam-environment)
+   - [I. Cognitive DNA & Skill Heatmap Analytics](#i-cognitive-dna--skill-heatmap-analytics)
+   - [J. Parent & Guardian WhatsApp/Email Reporting Engine](#j-parent--guardian-whatsappemail-reporting-engine)
+   - [K. Anti-Tamper Cryptographic Storage & Offline Resilience](#k-anti-tamper-cryptographic-storage--offline-resilience)
 4. [🛠️ Architecture & Tech Stack](#️-architecture--tech-stack)
 5. [🌐 API Endpoints & Server Capabilities](#-api-endpoints--server-capabilities)
 6. [🧪 Automated Test Suite & Self-Healing Guards](#-automated-test-suite--self-healing-guards)
@@ -87,6 +89,17 @@ StudyOS bridges two demanding educational domains into a unified, privacy-first 
 
 ---
 
+### 5. SaaS Engineers & Production DevOps (Self-Healing AI)
+
+| Feature | Description | Impact |
+| :--- | :--- | :--- |
+| **4-Stage Auto-Debugging Pipeline** | Real-time interception $\to$ AST context mapping $\to$ Tri-agent root cause analysis $\to$ sandboxed verification. | Eliminates manual on-call alert fatigue and runtime downtime. |
+| **Security & Auth Tamper Guardrails** | Strict validation rules preventing LLM patches from altering middleware, JWT auth, or environment secrets. | Total security compliance and regression safety. |
+| **Automated Vitest Regression Verification** | Every auto-generated patch must pass automated unit test suites in a virtual sandbox before deployment. | Guarantees zero side effects on production stability. |
+| **Quarantine Isolation Layer** | Automatically quarantines patches failing any test assertions, alerting human engineers with full diff diagnostics. | Ensures zero unverified code touches production. |
+
+---
+
 ## ⚡ Core Application Features
 
 ### A. Interactive Mastery Learning Engine
@@ -106,12 +119,26 @@ When a student struggles with a concept, they can switch between 4 distinct lear
 - **AI Answer Synthesis (`/api/ai/dev-interview-generate-answer`)**: Transforms disjointed spoken notes into polished, high-scoring interview answers.
 - **Comprehensive Rubric Evaluation**: Analyzes candidate answers for Technical Correctness (40%), Architecture & Scalability (25%), Big-O Complexity (20%), and Communication Clarity (15%).
 
-### D. Live Code Sandbox & AI Code Reviewer
+### D. Self-Healing (Auto-Debugging) 4-Stage SaaS Pipeline
+- **Stage 1: Error Capture Layer**: Global interception wrapping `window.onerror`, `window.onunhandledrejection`, console exceptions, and backend status 500 crashes.
+- **Stage 2: Context Aggregator**: Automatically extracts the AST codebase tree, stack frame origins, and affected line references.
+- **Stage 3: Tri-Agent AI Workflow**:
+  - **Agent 1 (Root Cause Analyzer)**: Diagnoses specific bug patterns (null dereference, arithmetic zero division, asynchronous race condition, unhandled timeouts).
+  - **Agent 2 (Surgical Patch Generator)**: Synthesizes minimal non-breaking code replacements with clear technical explanations.
+  - **Agent 3 (Security & Test Runner)**: Checks AST syntax validity, validates security guardrails (blocks auth tampering / secret exposure), and executes virtual Vitest regressions.
+- **Stage 4: Safe Auto-Deploy & Quarantine**: Deploys verified patches instantly or locks unverified changes into a safe quarantine view with interactive sandbox debugging controls.
+
+### E. Distraction-Free Focus Mode & Synthesized Audio
+- **Zen Dimming Overlay**: Minimizes all non-essential navigation, sidebars, and badges with an OLED dark canvas.
+- **Synthesized Ambient Audio**: Web Audio API-powered brown noise, gentle rain, and 10Hz binaural alpha waves generated with zero network latency or external audio assets.
+- **Integrated Pomodoro Stopwatch**: 25-minute focus intervals with instant pause, reset, and distraction-blocked counters.
+
+### F. Live Code Sandbox & AI Code Reviewer
 - Pre-loaded coding challenges across **Laravel/PHP**, **Python**, **Modern JavaScript/TypeScript**, and **DSA**.
 - AST syntax validation, custom test runners, and real-time execution outputs.
 - In-depth AI code review breaking down time/space complexity, edge cases, and code style recommendations.
 
-### E. 4-Level Confidence-Weighted Adaptive Practice
+### G. 4-Level Confidence-Weighted Adaptive Practice
 - Every question requires a confidence declaration:
   - **Very Confident (1.25x weight)**
   - **Confident (1.0x weight)**
@@ -119,28 +146,28 @@ When a student struggles with a concept, they can switch between 4 distinct lear
   - **Pure Guess (0.25x weight)**
 - Promotes mastery only when correct answers are backed by high confidence, preventing lucky guesses from distorting proficiency scores.
 
-### F. Spaced Repetition (SM-2 Algorithm) Flashcards
+### H. Spaced Repetition (SM-2 Algorithm) Flashcards
 - Implementation of the SuperMemo-2 (SM-2) memory scheduling algorithm.
 - Computes Easiness Factor ($EF$), interval repetition days, and review queues to optimize long-term memory retention.
 
-### G. Strict CBSE Board Mock Exam Environment
+### I. Strict CBSE Board Mock Exam Environment
 - Timed board exam simulations matching official CBSE Class 10 patterns.
 - Sectional division: Section A (MCQs & Assertion-Reason), Section B (Short Answers), Section C (Long Answers), Section D (Case-Based Scenarios).
 - Auto-save timer and post-exam score report with step-by-step marking schemes.
 
-### H. Cognitive DNA & Skill Heatmap Analytics
+### J. Cognitive DNA & Skill Heatmap Analytics
 - Visual radar charts and heatmaps mapping 4 key cognitive dimensions:
   - **Recall & Factual Accuracy**
   - **Numerical & Algorithmic Application**
   - **Conceptual Synthesis**
   - **Exam Speed & Time Management**
 
-### I. Parent & Guardian WhatsApp/Email Reporting Engine
+### K. Parent & Guardian WhatsApp/Email Reporting Engine
 - One-click export of structured student progress summaries.
 - Pre-formatted for instant sending via WhatsApp Web or mail client (`mailto:`).
 - Includes weekly study streaks, chapter completion percentage, and recommended review areas.
 
-### J. Anti-Tamper Cryptographic Storage & Offline Resilience
+### L. Anti-Tamper Cryptographic Storage & Offline Resilience
 - **HMAC-SHA256 Integrity Wrapping**: All LocalStorage data is signed with a cryptographic checksum to prevent local tampering of scores or streaks.
 - **Graceful Fallbacks**: Fully operational in offline or low-bandwidth environments with intelligent mock data synthesis.
 

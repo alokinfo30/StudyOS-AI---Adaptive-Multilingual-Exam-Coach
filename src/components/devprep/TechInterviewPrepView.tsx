@@ -43,6 +43,7 @@ import {
   DEV_INTERVIEW_QUESTIONS,
   DEV_CODE_CHALLENGES,
 } from '../../data/devCurriculum';
+import { SelfHealingDashboardModal } from './SelfHealingDashboardModal';
 import {
   evaluateDevInterviewResponse,
   reviewDevCodeSubmission,
@@ -90,6 +91,7 @@ export const TechInterviewPrepView: React.FC<TechInterviewPrepViewProps> = ({
 
   // Voice to Text & AI Generator States
   const [isVoiceGeneratorModalOpen, setIsVoiceGeneratorModalOpen] = useState(false);
+  const [isSelfHealingModalOpen, setIsSelfHealingModalOpen] = useState(false);
 
   // Direct Answer Voice Dictation Hook
   const {
@@ -311,6 +313,15 @@ export const TechInterviewPrepView: React.FC<TechInterviewPrepViewProps> = ({
             >
               <Layers className="w-3.5 h-3.5" />
               <span>Career Roadmap</span>
+            </button>
+
+            <button
+              onClick={() => setIsSelfHealingModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+              title="Open Self-Healing AI Pipeline (Capture, Analyze & Fix)"
+            >
+              <Cpu className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+              <span>Self-Healing AI</span>
             </button>
           </div>
         </div>
@@ -995,6 +1006,12 @@ export const TechInterviewPrepView: React.FC<TechInterviewPrepViewProps> = ({
           setIsVoiceGeneratorModalOpen(false);
         }}
         initialSpokenNotes={candidateAnswer}
+      />
+
+      {/* Self-Healing Auto-Debugging Pipeline Modal */}
+      <SelfHealingDashboardModal
+        isOpen={isSelfHealingModalOpen}
+        onClose={() => setIsSelfHealingModalOpen(false)}
       />
     </div>
   );

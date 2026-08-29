@@ -423,12 +423,21 @@ export interface UserProfile {
   parentReportFrequency?: 'realtime_each_progress' | 'daily_summary' | 'milestones_only';
   lastAutoDispatchedAt?: number;
   authProvider?: 'google' | 'guest';
+  accentColor?: CustomAccentColor;
   googleProfile?: {
     picture?: string;
     sub?: string;
     emailVerified?: boolean;
   };
 }
+
+export type CustomAccentColor =
+  | 'amber' // Amber Gold (Default)
+  | 'blue' // Electric Blue
+  | 'emerald' // Emerald Green
+  | 'rose' // Rose Pink
+  | 'purple' // Violet Purple
+  | 'cyan'; // Cyber Cyan
 
 export type TechTrack =
   | 'laravel'
@@ -520,13 +529,243 @@ export interface CourseProgressSession {
   totalCheckpointsCompleted?: number;
 }
 
+export interface ChapterTrophyBadge {
+  id: string;
+  chapterId: string;
+  chapterTitle: LocalizedString;
+  subjectName: string;
+  subjectColor: string;
+  iconName: 'trophy' | 'crown' | 'award' | 'flame' | 'zap' | 'shield_check' | 'star';
+  tier: 'gold' | 'platinum' | 'diamond' | 'in_progress';
+  tierLabel: string;
+  masteryPercent: number;
+  unlockedAt?: number;
+  criteriaDescription: string;
+  streakRequirementDays?: number;
+  perfectRecallScore?: number;
+}
+
+export interface StreakModifierInfo {
+  streakDays: number;
+  streakMultiplier: number; // e.g. 1.35x
+  cognitiveBoostPercent: number; // e.g. +35%
+  freezeShieldsRemaining: number;
+  weeklyDaysActive: boolean[]; // Mon-Sun
+  nextMilestoneReward: string;
+}
+
 export interface ShareAchievementPayload {
-  studentName: string;
+  title: string;
+  description: string;
   streakDays: number;
   accuracy: number;
-  totalQuestions: number;
-  examOrBoard: string;
-  recentConceptOrChapter?: string;
-  shareUrl: string;
+  hoursStudied: number;
+  targetExam?: string;
+  board?: string;
+  badgeEarned?: string;
 }
+
+export interface FocusModeState {
+  isActive: boolean;
+  activeSessionSeconds: number;
+  targetTopic?: string;
+  pomodoroMinutes: number;
+  ambientSoundEnabled: boolean;
+  ambientSoundType: 'rain' | 'whitenoise' | 'binaural_alpha' | 'off';
+  blockedDistractionCount: number;
+}
+
+// Self-Healing (Auto-Debugging) Agentic Pipeline Types
+export type SelfHealingPipelineStage =
+  | 'idle'
+  | 'error_intercepted'
+  | 'agent1_root_cause_analysis'
+  | 'agent2_patch_generation'
+  | 'agent3_security_test_runner'
+  | 'patch_auto_deployed'
+  | 'quarantined_test_failed';
+
+export interface SelfHealingErrorPayload {
+  id: string;
+  timestamp: number;
+  type: 'frontend_runtime' | 'unhandled_rejection' | 'console_error' | 'backend_crash' | 'network_timeout';
+  message: string;
+  file?: string;
+  line?: number;
+  col?: number;
+  stack?: string;
+  componentStack?: string;
+  environment: 'development' | 'production';
+  url?: string;
+  userAgent?: string;
+  resolved?: boolean;
+}
+
+export interface SelfHealingPatchRecord {
+  id: string;
+  errorId: string;
+  timestamp: number;
+  rootCauseAnalysis: {
+    diagnosis: string;
+    vulnerabilityLevel: 'low' | 'medium' | 'high' | 'critical';
+    affectedFile: string;
+    affectedFunction?: string;
+    identifiedBugPattern: string;
+  };
+  patchDiff: {
+    originalSnippet: string;
+    repairedSnippet: string;
+    patchExplanation: string;
+  };
+  securityAndTestResults: {
+    astSyntaxValid: boolean;
+    authBypassCheckPassed: boolean;
+    secretLeakCheckPassed: boolean;
+    unitTestsExecuted: number;
+    unitTestsPassed: number;
+    testSuitePassed: boolean;
+    executionTimeMs: number;
+  };
+  status: 'applied_and_verified' | 'quarantined_tests_failed' | 'rolled_back';
+  deployedAt?: number;
+}
+
+export interface SelfHealingStatus {
+  isInterceptorActive: boolean;
+  totalErrorsCaptured: number;
+  totalPatchesApplied: number;
+  autoResolutionRate: number; // e.g. 96.5%
+  recentErrors: SelfHealingErrorPayload[];
+  patchHistory: SelfHealingPatchRecord[];
+  activePipelineStage: SelfHealingPipelineStage;
+  currentActiveError?: SelfHealingErrorPayload;
+}
+
+// ----------------------------------------------------
+// 1. Quick Formula Cheat Sheet Types
+// ----------------------------------------------------
+export interface FormulaVariable {
+  symbol: string;
+  meaning: string;
+  unit?: string;
+  typicalValue?: string;
+}
+
+export interface FormulaEntry {
+  id: string;
+  title: string;
+  subjectId: string;
+  subjectName: string;
+  chapterId: string;
+  chapterName: string;
+  latex: string;
+  plainText: string;
+  explanation: string;
+  variables: FormulaVariable[];
+  applications: string[];
+  boardPyqFrequency?: 'High' | 'Very High' | 'Crucial';
+  commonMistakes?: string[];
+  tags: string[];
+}
+
+// ----------------------------------------------------
+// 2. Voice Performance & Tone Analytics Types
+// ----------------------------------------------------
+export interface VoicePerformanceMetrics {
+  durationSeconds: number;
+  totalWords: number;
+  wpm: number; // Words Per Minute (ideal 110-150)
+  pacingRating: 'too_slow' | 'ideal' | 'too_fast';
+  confidenceScore: number; // 0 - 100
+  clarityScore: number; // 0 - 100
+  hesitationCount: number; // Frequency of filler words / hesitation
+  detectedFillers: string[];
+  vocalPitchDynamic: 'monotone' | 'balanced' | 'enthusiastic';
+  toneQuality: 'hesitant' | 'cautious' | 'confident_assertive' | 'mastery_level';
+  keyInsights: string[];
+  speechImprovementPlan: string[];
+  evaluatedAt: number;
+}
+
+// ----------------------------------------------------
+// 3. Peer Study Match Types
+// ----------------------------------------------------
+export interface PeerStudent {
+  id: string;
+  name: string;
+  avatar: string;
+  city: string;
+  state: string;
+  board: string;
+  targetExam: string;
+  streakDays: number;
+  activeChapterId: string;
+  activeChapterTitle: string;
+  accuracy: number;
+  status: 'online' | 'ready_to_match' | 'in_challenge';
+}
+
+export interface PeerChallengeQuestion {
+  id: string;
+  prompt: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  conceptName: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
+
+export interface PeerCollaborativeSession {
+  id: string;
+  peer: PeerStudent;
+  chapterId: string;
+  chapterTitle: string;
+  durationSeconds: number; // 600s = 10 minutes
+  remainingSeconds: number;
+  currentQuestionIndex: number;
+  totalQuestions: number;
+  questions: PeerChallengeQuestion[];
+  studentAnswers: Record<number, number>; // questionIndex -> selectedOption
+  peerAnswers: Record<number, number>;
+  studentScore: number;
+  peerScore: number;
+  sharedNotes: string[];
+  peerFeedbackBadge?: string;
+  isFinished: boolean;
+}
+
+// ----------------------------------------------------
+// 4. D3 Concept Mind Map & Hierarchy Graph Types
+// ----------------------------------------------------
+export interface MindMapNode {
+  id: string;
+  name: string;
+  category: 'subject' | 'chapter' | 'core_concept' | 'sub_concept' | 'formula';
+  masteryScore?: number; // 0 - 100
+  difficulty?: 'easy' | 'medium' | 'hard';
+  description?: string;
+  formula?: string;
+  prerequisites?: string[];
+  children?: MindMapNode[];
+  // D3 layout properties
+  x?: number;
+  y?: number;
+  depth?: number;
+  height?: number;
+  data?: any;
+}
+
+export interface MindMapLink {
+  source: string;
+  target: string;
+  relationship: 'belongs_to' | 'prerequisite' | 'derives_formula' | 'related_concept';
+}
+
+export interface MindMapGraphData {
+  root: MindMapNode;
+  totalConcepts: number;
+  masteredCount: number;
+  learningCount: number;
+}
+
 
