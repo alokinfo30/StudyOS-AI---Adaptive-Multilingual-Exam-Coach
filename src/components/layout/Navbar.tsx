@@ -77,13 +77,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     SUPPORTED_LANGUAGES.find((l) => l.code === profile.preferredLanguage) ||
     SUPPORTED_LANGUAGES[0];
 
+  const isLoggedIn = profile.authProvider === 'google';
+
   // Dynamic Navigation Items based on Goal
   const getNavItems = () => {
+    // Menu mission, learn, Mind map, textbook practice, Revision, Mock Exam, Readiness, DNA, Career
+    // must be hidden unless student login successfully
+    if (!isLoggedIn) {
+      return [
+        { id: 'home', label: '🎯 Goal & Board' },
+      ];
+    }
+
     const goal = profile.goalCategory || 'school_board';
 
     if (goal === 'teacher_training') {
       return [
-        { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels & Studio', highlight: true },
         { id: 'practice', label: '📘 Lesson Practice' },
         { id: 'career', label: '🎓 Teacher Career Path' },
         { id: 'home', label: '🎯 Switch Goal' },
@@ -94,7 +103,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       return [
         { id: 'home', label: '🎯 Switch Goal' },
         { id: 'dev_prep', label: '💻 Dev Prep Hub', highlight: true },
-        { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels' },
         { id: 'career', label: '🚀 Tech Careers' },
       ];
     }
@@ -106,7 +114,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'learn', label: 'Learn' },
         { id: 'mindmap', label: '🧠 Mind Map' },
         { id: 'practice', label: 'Practice' },
-        { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels', highlight: true },
         { id: 'revision', label: 'Revision' },
         { id: 'mock_exam', label: 'Mock Exam' },
         { id: 'readiness', label: 'Readiness' },
@@ -120,7 +127,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       { id: 'home', label: '🎯 Goal & Board' },
       { id: 'mission', label: 'Mission' },
       { id: 'learn', label: 'Learn' },
-      { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels & Studio', highlight: true },
       { id: 'mindmap', label: '🧠 Mind Map' },
       { id: 'practice', label: '📘 Textbook Practice' },
       { id: 'revision', label: 'Revision' },
@@ -182,29 +188,56 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Zone 2: Navigation Links (Strictly Filtered by Goal) */}
-          <nav className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
-            {navItems.map((item) => {
-              const isActive = currentTab === item.id;
-              return (
+          {/* Zone 2: Navigation Links (Strictly Filtered by Goal & Auth State) */}
+          {isLoggedIn ? (
+            <nav className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
+              {navItems.map((item) => {
+                const isActive = currentTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelectTab(item.id)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px] ${
+                      isActive
+                        ? item.highlight
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-zinc-800 text-amber-400 border border-zinc-700 shadow-sm'
+                        : item.highlight
+                        ? 'text-blue-400 hover:text-blue-300 hover:bg-blue-950/40'
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          ) : (
+            <div className="hidden lg:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onSelectTab('home')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px] ${
+                  currentTab === 'home'
+                    ? 'bg-zinc-800 text-amber-400 border border-zinc-700 shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+                }`}
+              >
+                🎯 Goal & Board
+              </button>
+              {onOpenGoogleAuth && (
                 <button
-                  key={item.id}
-                  onClick={() => onSelectTab(item.id)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px] ${
-                    isActive
-                      ? item.highlight
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-zinc-800 text-amber-400 border border-zinc-700 shadow-sm'
-                      : item.highlight
-                      ? 'text-blue-400 hover:text-blue-300 hover:bg-blue-950/40'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-                  }`}
+                  type="button"
+                  onClick={onOpenGoogleAuth}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 transition-all cursor-pointer"
+                  title="Sign in with your Google account to unlock Mission, Learn, Practice & Exams"
                 >
-                  {item.label}
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Sign in to unlock Mission, Learn, Practice & Exams</span>
                 </button>
-              );
-            })}
-          </nav>
+              )}
+            </div>
+          )}
 
           {/* Zone 3: Primary Actions (Private Account + Language + AI Coach + Mobile Menu Toggle) */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -237,15 +270,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Student Private Account & Data Privacy Action */}
             <button
-              onClick={onOpenAccountPrivacy}
+              onClick={isLoggedIn ? onOpenAccountPrivacy : (onOpenGoogleAuth || onOpenAccountPrivacy)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-200 hover:border-amber-500/50 hover:bg-zinc-800 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px]"
-              title="My Private Account & Security Settings"
+              title={isLoggedIn ? "My Private Account & Security Settings" : "Sign In with Google Account"}
             >
               <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">
                 <Lock className="w-2.5 h-2.5 text-emerald-400" />
               </div>
               <span className="max-w-[80px] sm:max-w-[100px] truncate font-medium">
-                {profile.name.split(' ')[0]}
+                {isLoggedIn && profile.name ? profile.name.split(' ')[0] : 'Sign In'}
               </span>
             </button>
 
@@ -259,8 +292,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="whitespace-nowrap hidden md:inline">{currentLangObj.nativeName}</span>
             </button>
 
-            {/* Global Quick Formula Overlay Trigger */}
-            {onOpenQuickFormulas && (
+            {/* Global Quick Formula Overlay Trigger - Only visible when goal is confirmed */}
+            {profile.isGoalConfirmed && onOpenQuickFormulas && (
               <button
                 onClick={onOpenQuickFormulas}
                 className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-300 hover:text-amber-300 hover:border-amber-500/50 hover:bg-zinc-800 transition-all min-h-[34px]"
@@ -356,29 +389,31 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mobile Horizontal Navigation Scroller */}
-        <div className="flex lg:hidden items-center justify-start gap-1 px-2 py-1.5 border-t border-zinc-800/80 bg-zinc-950 overflow-x-auto no-scrollbar">
-          {navItems.map((item) => {
-            const isActive = currentTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap min-h-[32px] ${
-                  isActive
-                    ? item.highlight
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-800 text-amber-400'
-                    : item.highlight
-                    ? 'text-blue-400'
-                    : 'text-zinc-400'
-                }`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Mobile Horizontal Navigation Scroller (Visible when logged in) */}
+        {isLoggedIn && (
+          <div className="flex lg:hidden items-center justify-start gap-1 px-2 py-1.5 border-t border-zinc-800/80 bg-zinc-950 overflow-x-auto no-scrollbar">
+            {navItems.map((item) => {
+              const isActive = currentTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap min-h-[32px] ${
+                    isActive
+                      ? item.highlight
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-zinc-800 text-amber-400'
+                      : item.highlight
+                      ? 'text-blue-400'
+                      : 'text-zinc-400'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       {/* Mobile Drawer Dropdown Menu */}

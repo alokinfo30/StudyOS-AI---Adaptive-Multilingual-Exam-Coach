@@ -40,25 +40,21 @@ const PARENT_REPORT_LOGS_KEY = 'studyos_parent_report_logs';
 
 export const DEFAULT_STUDENT_ACCOUNTS: StudentAccount[] = [
   {
-    id: 'student_alok',
-    name: 'Alok Kumar',
-    email: 'alokinfo30@gmail.com',
+    id: 'guest_student',
+    name: 'Guest Learner',
+    email: '',
     avatar: '👨‍🎓',
     createdAt: 1700000000000,
     selectedExam: 'CBSE_10',
     preferredLanguage: 'hi',
     goalCategory: 'school_board',
     selectedBoard: 'CBSE',
-    parentPhone: '+919876543210',
-    parentName: 'Ramesh Kumar',
-    isGoalConfirmed: false, // Must not be visible in top bar until selected by student
-    autoSendReportsToParent: true, // Automatically sends each progress report to parent's mobile
-    parentReportFrequency: 'realtime_each_progress',
-    authProvider: 'google',
-    googleProfile: {
-      emailVerified: true,
-      picture: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-    },
+    parentPhone: '',
+    parentName: '',
+    isGoalConfirmed: false,
+    autoSendReportsToParent: false,
+    parentReportFrequency: 'daily_summary',
+    authProvider: 'guest',
   },
 ];
 
@@ -420,7 +416,15 @@ export function loadUserProfile(studentId?: string): UserProfile {
   const activeId = studentId || getActiveStudentId();
   try {
     const raw = localStorage.getItem(getScopedKey('profile', activeId));
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const p = JSON.parse(raw);
+      // If user is guest/not authenticated via google, ensure guest name is used
+      if (p.authProvider !== 'google') {
+        p.name = 'Guest Learner';
+        p.email = '';
+      }
+      return p;
+    }
   } catch (e) {
     console.error('Failed to load profile', e);
   }
@@ -429,25 +433,25 @@ export function loadUserProfile(studentId?: string): UserProfile {
 
   const defaultProfile: UserProfile = {
     id: account.id,
-    name: account.name,
-    email: account.email,
-    preferredLanguage: account.preferredLanguage,
-    selectedExam: account.selectedExam,
+    name: account.authProvider === 'google' ? account.name : 'Guest Learner',
+    email: account.authProvider === 'google' ? account.email : '',
+    preferredLanguage: account.preferredLanguage || 'hi',
+    selectedExam: account.selectedExam || 'CBSE_10',
     targetScore: account.selectedExam === 'JEE_MAIN' ? 96 : 90,
     examDate: '2026-03-01',
-    streakDays: 6,
+    streakDays: account.authProvider === 'google' ? 6 : 0,
     lastActiveDate: new Date().toISOString().split('T')[0],
     activeRole: 'student',
     goalCategory: account.goalCategory || 'school_board',
     selectedBoard: account.selectedBoard || 'CBSE',
     selectedTechTrack: account.selectedTechTrack,
     developerLevel: account.developerLevel,
-    parentPhone: account.parentPhone || '+919876543210',
-    parentName: account.parentName || 'Guardian',
+    parentPhone: account.parentPhone || '',
+    parentName: account.parentName || '',
     isGoalConfirmed: account.isGoalConfirmed ?? false,
-    autoSendReportsToParent: account.autoSendReportsToParent ?? true,
-    parentReportFrequency: account.parentReportFrequency || 'realtime_each_progress',
-    authProvider: account.authProvider || 'google',
+    autoSendReportsToParent: account.autoSendReportsToParent ?? false,
+    parentReportFrequency: account.parentReportFrequency || 'daily_summary',
+    authProvider: account.authProvider || 'guest',
     googleProfile: account.googleProfile,
     isOfflineMode: false,
   };
@@ -880,20 +884,8 @@ export function loadLastCourseSession(studentId?: string): CourseProgressSession
     console.error('Failed to load last course session', e);
   }
 
-  // Sensible default starter session if student is fresh
-  return {
-    targetTab: 'learn',
-    subjectId: 'sub_physics_10',
-    subjectName: 'Physics: Current Electricity & Circuits',
-    chapterId: 'ch_electricity_10',
-    chapterTitle: 'Ohm’s Law, Resistance & Power',
-    conceptId: 'concept_ohms_law',
-    conceptTitle: 'Ohm’s Law & Resistance Scaling',
-    questionIndex: 0,
-    progressPercent: 68,
-    lastVisitedTimestamp: Date.now() - 3600000,
-    totalCheckpointsCompleted: 2,
-  };
+  // If no session saved for this student, return null
+  return null;
 }
 
 export function saveLastCourseSession(session: CourseProgressSession, studentId?: string): void {

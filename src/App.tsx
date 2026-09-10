@@ -101,17 +101,19 @@ export default function App() {
     applyAccentColorToDocument(profile.accentColor || 'amber');
   }, [profile.accentColor]);
 
-  // Global keyboard shortcut for Quick Formula Cheat-Sheet (Shift + F)
+  // Global keyboard shortcut for Quick Formula Cheat-Sheet (Shift + F) - Only when goal confirmed
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.shiftKey && (e.key === 'F' || e.key === 'f')) {
-        e.preventDefault();
-        setIsFormulaOverlayOpen((prev) => !prev);
+        if (profile.isGoalConfirmed) {
+          e.preventDefault();
+          setIsFormulaOverlayOpen((prev) => !prev);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [profile.isGoalConfirmed]);
 
   const toggleFocusMode = () => {
     setFocusModeState((prev) => ({
@@ -176,6 +178,7 @@ export default function App() {
     setProfile(updated);
     saveUserProfile(updated, activeStudentId);
     setIsGoogleAuthOpen(false);
+    setCurrentTab('home');
   };
 
   // Sync state changes to storage for active student
@@ -321,12 +324,31 @@ export default function App() {
     saveStudentDNA(updatedDna, activeStudentId);
   };
 
-  // Enforce Parent Mobile Number check before starting learning modules
+  // Enforce Student Login and Parent Mobile Number check before starting learning modules
   const handleNavigateWithParentCheck = (targetTab: string) => {
     if (profile.activeRole === 'parent' && targetTab !== 'parent') {
       const updated = { ...profile, activeRole: 'student' as const };
       setProfile(updated);
       saveUserProfile(updated, activeStudentId);
+    }
+
+    const isLoggedIn = profile.authProvider === 'google';
+    const protectedTabs = [
+      'mission',
+      'learn',
+      'mindmap',
+      'practice',
+      'revision',
+      'mock_exam',
+      'readiness',
+      'dna',
+      'career',
+      'dev_prep',
+    ];
+
+    if (!isLoggedIn && protectedTabs.includes(targetTab)) {
+      setIsGoogleAuthOpen(true);
+      return;
     }
 
     const learningTabs = ['learn', 'practice', 'revision', 'mock_exam', 'dev_prep', 'mission'];
@@ -467,16 +489,17 @@ export default function App() {
           />
         ) : (
           <>
-            {currentTab === 'home' && (
+            {(profile.authProvider !== 'google' || currentTab === 'home') && (
               <StudyOSHomeView
                 language={profile.preferredLanguage}
                 profile={profile}
                 onConfirmGoal={handleConfirmGoal}
                 onNavigateTab={handleNavigateWithParentCheck}
+                onOpenGoogleAuth={() => setIsGoogleAuthOpen(true)}
               />
             )}
 
-            {currentTab === 'mission' && (
+            {profile.authProvider === 'google' && currentTab === 'mission' && (
               <DailyMissionView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -486,7 +509,7 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'learn' && (
+            {profile.authProvider === 'google' && currentTab === 'learn' && (
               <InteractiveLessonView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -499,7 +522,7 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'mindmap' && (
+            {profile.authProvider === 'google' && currentTab === 'mindmap' && (
               <div className="space-y-6">
                 <ConceptMindMapView
                   masteries={masteries}
@@ -510,7 +533,7 @@ export default function App() {
               </div>
             )}
 
-            {currentTab === 'practice' && (
+            {profile.authProvider === 'google' && currentTab === 'practice' && (
               <InteractivePracticeView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -519,21 +542,21 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'revision' && (
+            {profile.authProvider === 'google' && currentTab === 'revision' && (
               <SpacedRepetitionView
                 language={profile.preferredLanguage}
                 profile={profile}
               />
             )}
 
-            {currentTab === 'mock_exam' && (
+            {profile.authProvider === 'google' && currentTab === 'mock_exam' && (
               <MockTestSimulator
                 language={profile.preferredLanguage}
                 profile={profile}
               />
             )}
 
-            {currentTab === 'readiness' && (
+            {profile.authProvider === 'google' && currentTab === 'readiness' && (
               <ExamReadinessView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -543,14 +566,14 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'dev_prep' && (
+            {profile.authProvider === 'google' && currentTab === 'dev_prep' && (
               <TechInterviewPrepView
                 language={profile.preferredLanguage}
                 profile={profile}
               />
             )}
 
-            {currentTab === 'dna' && (
+            {profile.authProvider === 'google' && currentTab === 'dna' && (
               <StudentDNAView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -559,11 +582,11 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'apprentice_teaching' && (
+            {profile.authProvider === 'google' && currentTab === 'apprentice_teaching' && (
               <ApprenticeEducatorHub />
             )}
 
-            {currentTab === 'career' && (
+            {profile.authProvider === 'google' && currentTab === 'career' && (
               <CareerRoadmapView language={profile.preferredLanguage} />
             )}
           </>

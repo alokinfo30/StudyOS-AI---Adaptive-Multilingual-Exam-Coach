@@ -28,6 +28,7 @@ import {
   ConceptMastery,
 } from '../../types';
 import { CURRICULUM_QUESTIONS } from '../../data/curriculum';
+import { getQuestionsForProfile } from '../../data/questionBank';
 import { getLocalizedText } from '../../data/languages';
 import {
   calculateConceptMasteryDelta,
@@ -59,15 +60,20 @@ export const InteractivePracticeView: React.FC<InteractivePracticeViewProps> = (
   // Category Filter state
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'in_text' | 'exercise' | 'exemplar'>('all');
 
+  // Context-aware questions filtering based on user profile (Class 10 vs 12, Board, and Competitive PYQs)
+  const profileQuestions = useMemo(() => {
+    return getQuestionsForProfile(profile);
+  }, [profile.selectedExam, profile.selectedBoard, profile.goalCategory]);
+
   // Filtered Questions according to active filter
   const filteredQuestions = useMemo(() => {
-    if (selectedFilter === 'all') return CURRICULUM_QUESTIONS;
-    return CURRICULUM_QUESTIONS.filter((q) => q.textbookSource?.category === selectedFilter);
-  }, [selectedFilter]);
+    if (selectedFilter === 'all') return profileQuestions;
+    return profileQuestions.filter((q) => q.textbookSource?.category === selectedFilter);
+  }, [selectedFilter, profileQuestions]);
 
   const [questionIndex, setQuestionIndex] = useState(0);
   const currentQuestion: Question =
-    filteredQuestions[questionIndex] || filteredQuestions[0] || CURRICULUM_QUESTIONS[0];
+    filteredQuestions[questionIndex] || filteredQuestions[0] || profileQuestions[0] || CURRICULUM_QUESTIONS[0];
 
   // User input states
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -266,6 +272,19 @@ export const InteractivePracticeView: React.FC<InteractivePracticeViewProps> = (
         {/* Textbook Source Banner & Question Metadata */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
           <div className="space-y-1.5">
+            {currentQuestion.isPYQ && (
+              <div className="flex items-center gap-2 flex-wrap pb-1">
+                <span className="px-2.5 py-0.5 text-[11px] font-bold rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 font-mono flex items-center gap-1">
+                  🎯 {currentQuestion.pyqExam || 'Official Exam'} {currentQuestion.pyqYear} PYQ (Past 10 Years)
+                </span>
+                {currentQuestion.classLevel && (
+                  <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono">
+                    Class {currentQuestion.classLevel}
+                  </span>
+                )}
+              </div>
+            )}
+
             {currentQuestion.textbookSource && (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2.5 py-0.5 text-[11px] font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono flex items-center gap-1">

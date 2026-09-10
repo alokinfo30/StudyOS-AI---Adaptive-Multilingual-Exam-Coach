@@ -163,7 +163,7 @@ export interface TextbookSource {
   exercise?: string; // e.g. "Exercise 12.1", "In-Text Page 209", "NCERT Exemplar Section B"
   questionNo: string; // e.g. "Q3", "Example 12.4"
   pageNo?: number;
-  category: 'in_text' | 'exercise' | 'exemplar' | 'board_pyq';
+  category: 'in_text' | 'exercise' | 'exemplar' | 'board_pyq' | 'competitive_pyq' | 'example';
 }
 
 export interface Question {
@@ -176,6 +176,12 @@ export interface Question {
   marks: number;
   negativeMarks?: number;
   expectedTimeSec: number;
+  classLevel?: '10' | '11' | '12' | 'competitive' | 'dev';
+  targetExam?: ExamCategory | string;
+  targetBoard?: EducationBoard | string;
+  isPYQ?: boolean;
+  pyqExam?: string;
+  pyqYear?: number;
   prompt: LocalizedString;
   options: LocalizedString[];
   correctIndex: number;
@@ -183,7 +189,7 @@ export interface Question {
   tolerance?: number;
   explanation: LocalizedString;
   hint1: LocalizedString;
-  hint2: LocalizedString;
+  hint2?: LocalizedString;
   guidedReasoning: LocalizedString;
   commonMisconception?: LocalizedString;
   whyReason?: LocalizedString; // Dynamic reason why student was served this question

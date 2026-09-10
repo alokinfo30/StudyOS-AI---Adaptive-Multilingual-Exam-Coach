@@ -99,6 +99,38 @@ export const DailyMissionView: React.FC<DailyMissionViewProps> = ({
     },
   ];
 
+  // Dynamic time-based greeting according to student's actual local time
+  const getTimeBasedGreeting = () => {
+    let hour = new Date().getHours();
+    try {
+      // If user is learning Indian curriculum (CBSE/UP Board/JEE/NEET) or in Asia/Kolkata,
+      // calculate the time accurately based on their geographic location (IST)
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const istHour = new Date(
+        new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+      ).getHours();
+      
+      // If system timezone is US/UTC container or Indian boards are targeted, calibrate to IST
+      if (tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta' || (tz && (tz.startsWith('America/') || tz === 'UTC'))) {
+        hour = istHour;
+      }
+    } catch {
+      hour = new Date().getHours();
+    }
+
+    if (hour >= 4 && hour < 12) {
+      return language === 'hi' ? 'शुभ प्रभात' : 'Good Morning';
+    } else if (hour >= 12 && hour < 17) {
+      return language === 'hi' ? 'शुभ दोपहर' : 'Good Afternoon';
+    } else if (hour >= 17 && hour < 22) {
+      return language === 'hi' ? 'शुभ संध्या' : 'Good Evening';
+    } else {
+      return language === 'hi' ? 'शुभ संध्या' : 'Good Evening';
+    }
+  };
+
+  const displayName = profile.authProvider === 'google' && profile.name ? profile.name : 'Learner';
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fadeIn pb-12">
       {/* Hero Greeting & Today's Priority Mission Header */}
@@ -112,7 +144,7 @@ export const DailyMissionView: React.FC<DailyMissionViewProps> = ({
               <span className="text-xs text-zinc-400 font-mono">Target: {profile.targetScore}% Exam Score</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-100 font-sans tracking-tight">
-              Good Morning, {profile.name} 👋
+              {getTimeBasedGreeting()}, {displayName} 👋
             </h1>
             <p className="text-xs sm:text-sm text-zinc-400 max-w-xl">
               StudyOS AI has calculated your retention curve. Focus on high-yield physics and quadratic algebra today to bridge your 12% readiness gap.

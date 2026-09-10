@@ -21,6 +21,10 @@ import {
   HelpCircle,
   Clock,
   Volume2,
+  Lock,
+  User,
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import {
   LanguageCode,
@@ -39,6 +43,7 @@ import { SpeechSynthesisPlayer } from '../common/SpeechSynthesisPlayer';
 import { SocialShareModal } from '../common/SocialShareModal';
 import { SystemDiagnosticsModal } from '../common/SystemDiagnosticsModal';
 import { loadLastCourseSession } from '../../services/storageService';
+import { SyllabusCrossCheckIndex } from './SyllabusCrossCheckIndex';
 
 interface StudyOSHomeViewProps {
   language: LanguageCode;
@@ -55,6 +60,7 @@ interface StudyOSHomeViewProps {
     parentName?: string;
   }) => void;
   onNavigateTab: (tab: string) => void;
+  onOpenGoogleAuth?: () => void;
 }
 
 export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
@@ -62,7 +68,12 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
   profile,
   onConfirmGoal,
   onNavigateTab,
+  onOpenGoogleAuth,
 }) => {
+  // Auth state
+  const isLoggedIn = profile.authProvider === 'google';
+  const [showAuthGateModal, setShowAuthGateModal] = useState(false);
+
   // 4-Step Onboarding Wizard State
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [selectedGoal, setSelectedGoal] = useState<GoalCategory>(
@@ -91,10 +102,10 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
     profile.autoSendReportsToParent ?? true
   );
   const [parentPhoneInput, setParentPhoneInput] = useState<string>(
-    profile.parentPhone || '+919876543210'
+    profile.parentPhone || ''
   );
   const [parentNameInput, setParentNameInput] = useState<string>(
-    profile.parentName || 'Ramesh Kumar'
+    profile.parentName || ''
   );
   const [isSavedToast, setIsSavedToast] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -102,6 +113,40 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
   const [lastSession] = useState<CourseProgressSession | null>(() =>
     loadLastCourseSession(profile.id)
   );
+
+  const handleContinueToStep2 = () => {
+    if (!isLoggedIn) {
+      setShowAuthGateModal(true);
+      if (onOpenGoogleAuth) {
+        onOpenGoogleAuth();
+      }
+      return;
+    }
+    setWizardStep(2);
+  };
+
+  const handleStepClick = (targetStep: number) => {
+    if (targetStep > 1 && !isLoggedIn) {
+      setShowAuthGateModal(true);
+      if (onOpenGoogleAuth) {
+        onOpenGoogleAuth();
+      }
+      return;
+    }
+    setWizardStep(targetStep);
+  };
+
+  const handleSelectGoalPathway = (goal: GoalCategory) => {
+    setSelectedGoal(goal);
+    if (!isLoggedIn) {
+      setShowAuthGateModal(true);
+      if (onOpenGoogleAuth) {
+        onOpenGoogleAuth();
+      }
+      return;
+    }
+    setWizardStep(2);
+  };
 
   const handleResumeCourse = () => {
     if (lastSession) {
@@ -190,8 +235,8 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fadeIn pb-16 px-1 sm:px-0">
-      {/* Quick Action Top Bar: Resume Learning & Social Share */}
-      {lastSession && (
+      {/* Quick Action Top Bar: Resume Learning & Social Share (Only visible when logged in) */}
+      {isLoggedIn && lastSession && (
         <div className="bg-gradient-to-r from-amber-500/15 via-zinc-900 to-zinc-900 border border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-amber-500 text-zinc-950 flex items-center justify-center text-xl font-bold shrink-0 shadow-lg shadow-amber-500/20">
@@ -298,7 +343,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
           <button
             key={item.step}
             type="button"
-            onClick={() => setWizardStep(item.step)}
+            onClick={() => handleStepClick(item.step)}
             className={`p-3 rounded-2xl border text-left transition-all ${
               wizardStep === item.step
                 ? 'bg-amber-500/10 border-amber-500/80 shadow-md text-amber-300'
@@ -331,13 +376,41 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
             </p>
           </div>
 
+          {/* Account Authentication Status Banner */}
+          {!isLoggedIn ? (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  <strong>Account Sign-In Required:</strong> Please sign in with your Google account to proceed to Step 2 and unlock your personalized curriculum.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenGoogleAuth) {
+                    onOpenGoogleAuth();
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 text-zinc-950 font-bold text-xs hover:bg-amber-400 transition-all shrink-0 flex items-center gap-1.5 shadow-md"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Sign In with Google</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-mono">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>
+                Logged in as <strong>{profile.email}</strong> • Continuous progress tracking active
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
             {/* Pathway 1: School & Board */}
             <div
-              onClick={() => {
-                setSelectedGoal('school_board');
-                setWizardStep(2);
-              }}
+              onClick={() => handleSelectGoalPathway('school_board')}
               className={`p-6 rounded-2xl border cursor-pointer transition-all space-y-4 hover:border-amber-500/80 group ${
                 selectedGoal === 'school_board'
                   ? 'bg-amber-500/10 border-amber-500 text-zinc-100 shadow-lg ring-1 ring-amber-500/30'
@@ -367,10 +440,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
 
             {/* Pathway 2: Competitive Entrance */}
             <div
-              onClick={() => {
-                setSelectedGoal('competitive_entrance');
-                setWizardStep(2);
-              }}
+              onClick={() => handleSelectGoalPathway('competitive_entrance')}
               className={`p-6 rounded-2xl border cursor-pointer transition-all space-y-4 hover:border-amber-500/80 group ${
                 selectedGoal === 'competitive_entrance'
                   ? 'bg-amber-500/10 border-amber-500 text-zinc-100 shadow-lg ring-1 ring-amber-500/30'
@@ -400,10 +470,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
 
             {/* Pathway 3: Dev Tech Interviews */}
             <div
-              onClick={() => {
-                setSelectedGoal('dev_interview');
-                setWizardStep(2);
-              }}
+              onClick={() => handleSelectGoalPathway('dev_interview')}
               className={`p-6 rounded-2xl border cursor-pointer transition-all space-y-4 hover:border-amber-500/80 group ${
                 selectedGoal === 'dev_interview'
                   ? 'bg-amber-500/10 border-amber-500 text-zinc-100 shadow-lg ring-1 ring-amber-500/30'
@@ -463,7 +530,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
           <div className="pt-4 flex justify-end">
             <button
               type="button"
-              onClick={() => setWizardStep(2)}
+              onClick={handleContinueToStep2}
               className="py-3 px-6 rounded-xl bg-amber-500 text-zinc-950 font-bold text-xs flex items-center gap-2 hover:bg-amber-400 transition-all shadow-md"
             >
               <span>Continue to Step 2</span>
@@ -830,6 +897,17 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
             </div>
           </div>
 
+          {/* SYLLABUS & CHAPTERS INDEX CROSS-CHECK (Cross-check before Review & Confirm) */}
+          <div className="pt-2">
+            <SyllabusCrossCheckIndex
+              goalCategory={selectedGoal}
+              selectedClass={selectedClass}
+              selectedBoard={selectedBoard}
+              selectedExam={selectedExam}
+              language={selectedLang}
+            />
+          </div>
+
           <div className="pt-4 flex justify-between">
             <button
               type="button"
@@ -1132,6 +1210,64 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
         isOpen={isDiagnosticsModalOpen}
         onClose={() => setIsDiagnosticsModalOpen(false)}
       />
+
+      {/* Account Sign-In Required Auth Gate Modal */}
+      {showAuthGateModal && !isLoggedIn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-zinc-900 border border-amber-500/50 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                <Lock className="w-4 h-4" />
+                <span>Account Sign-In Required</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAuthGateModal(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              To customize your educational board, access Step 2, and safeguard your continuous learning progress, please sign in to your student account.
+            </p>
+
+            <div className="p-3.5 bg-zinc-950 rounded-xl border border-zinc-800 text-xs space-y-1.5 text-zinc-400">
+              <div className="text-zinc-200 font-semibold flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                <span>Protected Student Profile</span>
+              </div>
+              <div>• Continuous progress saved to your account</div>
+              <div>• Automatic parent progress updates via SMS/WhatsApp</div>
+              <div>• Cross-check syllabus and textbook exercise synchronization</div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAuthGateModal(false);
+                  if (onOpenGoogleAuth) {
+                    onOpenGoogleAuth();
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-amber-500 text-zinc-950 font-bold text-xs flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-md"
+              >
+                <User className="w-4 h-4" />
+                <span>Sign In with Google</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAuthGateModal(false)}
+                className="py-3 px-4 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-xs hover:bg-zinc-700 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
