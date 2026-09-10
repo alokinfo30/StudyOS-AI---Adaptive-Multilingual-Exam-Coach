@@ -54,7 +54,9 @@ import { initializeSelfHealingInterceptor } from './services/selfHealingService'
 import { QuickFormulaOverlay } from './components/learning/QuickFormulaOverlay';
 import { PeerStudyMatch } from './components/social/PeerStudyMatch';
 import { ConceptMindMapView } from './components/learning/ConceptMindMapView';
+import { ApprenticeEducatorHub } from './components/teaching/ApprenticeEducatorHub';
 import { applyAccentColorToDocument } from './utils/themeUtils';
+import { playMasteryPopSound } from './utils/audioEffects';
 import { WifiOff, Zap } from 'lucide-react';
 
 export default function App() {
@@ -79,6 +81,11 @@ export default function App() {
   const [isSelfHealingOpen, setIsSelfHealingOpen] = useState<boolean>(false);
   const [isFormulaOverlayOpen, setIsFormulaOverlayOpen] = useState<boolean>(false);
   const [isPeerMatchOpen, setIsPeerMatchOpen] = useState<boolean>(false);
+  const [masteryPopAlert, setMasteryPopAlert] = useState<{
+    conceptName: string;
+    delta: number;
+    newScore: number;
+  } | null>(null);
   const [focusModeState, setFocusModeState] = useState<FocusModeState>({
     isActive: false,
     sessionStartTime: 0,
@@ -238,6 +245,33 @@ export default function App() {
         overallMastery: refinedMastery,
         state: refinedState,
       };
+    }
+
+    // Trigger subtle pop animation and sound effect whenever mastery level updates
+    let highestGain = 0;
+    let gainedId = '';
+    let gainedNewScore = 0;
+
+    for (const [cId, newM] of Object.entries(processedMasteries)) {
+      const prevM = masteries[cId];
+      if (prevM && newM.overallMastery > prevM.overallMastery) {
+        const gain = newM.overallMastery - prevM.overallMastery;
+        if (gain > highestGain) {
+          highestGain = gain;
+          gainedId = cId;
+          gainedNewScore = newM.overallMastery;
+        }
+      }
+    }
+
+    if (highestGain > 0) {
+      playMasteryPopSound(gainedNewScore >= 90);
+      setMasteryPopAlert({
+        conceptName: gainedId.replace(/^c_|^ch_/, '').replace(/_/g, ' '),
+        delta: highestGain,
+        newScore: gainedNewScore,
+      });
+      setTimeout(() => setMasteryPopAlert(null), 3500);
     }
 
     setMasteries(processedMasteries);
@@ -468,6 +502,7 @@ export default function App() {
             {currentTab === 'mindmap' && (
               <div className="space-y-6">
                 <ConceptMindMapView
+                  masteries={masteries}
                   onSelectConcept={(cid, cname) => {
                     // Quick inspection or jump
                   }}
@@ -520,7 +555,12 @@ export default function App() {
                 language={profile.preferredLanguage}
                 profile={profile}
                 dna={dna}
+                masteries={masteries}
               />
+            )}
+
+            {currentTab === 'apprentice_teaching' && (
+              <ApprenticeEducatorHub />
             )}
 
             {currentTab === 'career' && (
@@ -631,6 +671,24 @@ export default function App() {
         onClose={() => setIsPeerMatchOpen(false)}
         userProfile={profile}
       />
+
+      {/* Gamified Mastery Pop Level-Up Toast */}
+      {masteryPopAlert && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-zinc-950 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce border-2 border-amber-200">
+          <div className="w-9 h-9 rounded-xl bg-zinc-950 text-amber-400 flex items-center justify-center font-black text-sm font-mono shadow-inner">
+            +{masteryPopAlert.delta}%
+          </div>
+          <div>
+            <div className="text-xs font-black uppercase tracking-wider flex items-center gap-1">
+              <span>Mastery Progress Pop!</span>
+              <span>🎉</span>
+            </div>
+            <div className="text-[11px] font-bold text-zinc-900 capitalize">
+              {masteryPopAlert.conceptName} • {masteryPopAlert.newScore}% Mastery
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

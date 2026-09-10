@@ -331,7 +331,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
             {/* Pathway 1: School & Board */}
             <div
               onClick={() => {
@@ -426,7 +426,35 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
               </div>
 
               <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs text-emerald-400 font-semibold">
-                <span>Production Architecture Drills</span>
+                <span>Production Architecture</span>
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+
+            {/* Pathway 4: Apprentice Educator & Teacher Training */}
+            <div
+              onClick={() => {
+                onNavigateTab('apprentice_teaching');
+              }}
+              className="p-6 rounded-2xl border cursor-pointer transition-all space-y-4 hover:border-amber-500 group bg-amber-500/10 border-amber-500/40 text-zinc-100 shadow-lg ring-1 ring-amber-500/20 hover:bg-amber-500/15"
+            >
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center font-bold text-xl group-hover:scale-105 transition-transform">
+                👩‍🏫
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-base text-white">Apprentice Educator</h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/30 text-amber-200 font-semibold">
+                    B.Ed • BTC • ITI
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Practical phase micro-teaching AI studio (mobile/laptop/desktop), multi-take recording, and campus reels feed with peer judging.
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-amber-500/30 flex items-center justify-between text-xs text-amber-300 font-semibold">
+                <span>Teaching Reels & Studio</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>

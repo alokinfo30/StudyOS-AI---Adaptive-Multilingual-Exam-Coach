@@ -1,6 +1,6 @@
 {
   "name": "StudyOS AI - Adaptive Multilingual Exam Coach",
-  "description": "AI-powered adaptive learning, spaced repetition, multilingual concept mastery, and exam readiness platform for CBSE, ICSE, UP Board, JEE, and NEET.",
-  "requestFramePermissions": [],
+  "description": "AI-powered adaptive learning, spaced repetition, multilingual concept mastery, and apprentice educator teaching practice studio with campus micro-teaching reels and peer judging.",
+  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

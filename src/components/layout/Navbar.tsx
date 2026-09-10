@@ -81,10 +81,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   const getNavItems = () => {
     const goal = profile.goalCategory || 'school_board';
 
+    if (goal === 'teacher_training') {
+      return [
+        { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels & Studio', highlight: true },
+        { id: 'practice', label: '📘 Lesson Practice' },
+        { id: 'career', label: '🎓 Teacher Career Path' },
+        { id: 'home', label: '🎯 Switch Goal' },
+      ];
+    }
+
     if (goal === 'dev_interview') {
       return [
         { id: 'home', label: '🎯 Switch Goal' },
         { id: 'dev_prep', label: '💻 Dev Prep Hub', highlight: true },
+        { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels' },
         { id: 'career', label: '🚀 Tech Careers' },
       ];
     }
@@ -96,6 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'learn', label: 'Learn' },
         { id: 'mindmap', label: '🧠 Mind Map' },
         { id: 'practice', label: 'Practice' },
+        { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels', highlight: true },
         { id: 'revision', label: 'Revision' },
         { id: 'mock_exam', label: 'Mock Exam' },
         { id: 'readiness', label: 'Readiness' },
@@ -109,7 +120,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       { id: 'home', label: '🎯 Goal & Board' },
       { id: 'mission', label: 'Mission' },
       { id: 'learn', label: 'Learn' },
-      { id: 'mindmap', label: '🧠 Mind Map', highlight: true },
+      { id: 'apprentice_teaching', label: '👩‍🏫 Teaching Reels & Studio', highlight: true },
+      { id: 'mindmap', label: '🧠 Mind Map' },
       { id: 'practice', label: '📘 Textbook Practice' },
       { id: 'revision', label: 'Revision' },
       { id: 'mock_exam', label: 'Mock Exam' },

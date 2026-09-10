@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Flame,
   Clock,
@@ -16,10 +16,13 @@ import {
   Shield,
   Award,
   Calendar,
+  MapPin,
+  Flag,
 } from 'lucide-react';
 import { ConceptMastery, DailyMission, LanguageCode, StudentDNA, UserProfile } from '../../types';
 import { getLocalizedText } from '../../data/languages';
 import { getStreakModifier } from '../../utils/masteryCalculator';
+import { GoalRoadmapOverlay } from './GoalRoadmapOverlay';
 
 interface DailyMissionViewProps {
   language: LanguageCode;
@@ -36,6 +39,7 @@ export const DailyMissionView: React.FC<DailyMissionViewProps> = ({
   masteries,
   onNavigateTab,
 }) => {
+  const [isRoadmapOpen, setIsRoadmapOpen] = useState(false);
   const currentStreakDays = dna.consistencyStreak || profile.streakDays || 7;
   const streakInfo = getStreakModifier(currentStreakDays);
   const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -125,6 +129,32 @@ export const DailyMissionView: React.FC<DailyMissionViewProps> = ({
               <span className="text-lg font-bold text-emerald-400 font-mono">78%</span>
             </div>
           </div>
+        </div>
+
+        {/* Goal Roadmap Quick Launcher Line */}
+        <div className="mt-5 pt-4 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <Flag className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-zinc-200 block">
+                Target: {profile.selectedBoard || 'CBSE'} Exam Journey ({profile.examDate || 'Feb 2027'})
+              </span>
+              <span className="text-[11px] text-zinc-400 font-mono">
+                Phase 2 of 5 active • Tracking consistency velocity & exam buffer
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsRoadmapOpen(true)}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 text-zinc-950 hover:bg-amber-400 transition-all flex items-center gap-1.5 shadow-md self-start sm:self-auto"
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Open Goal Roadmap</span>
+            <ArrowRight className="w-3.5 h-3.5 ml-1" />
+          </button>
         </div>
       </div>
 
@@ -348,6 +378,15 @@ export const DailyMissionView: React.FC<DailyMissionViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Goal Roadmap Overlay */}
+      <GoalRoadmapOverlay
+        isOpen={isRoadmapOpen}
+        onClose={() => setIsRoadmapOpen(false)}
+        profile={profile}
+        dna={dna}
+        masteries={masteries}
+      />
     </div>
   );
 };

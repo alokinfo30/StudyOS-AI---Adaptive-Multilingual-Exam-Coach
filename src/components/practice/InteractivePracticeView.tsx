@@ -41,6 +41,7 @@ import {
 import { diagnoseStudentError } from '../../services/geminiService';
 import { FailureRecoveryModal } from './FailureRecoveryModal';
 import { TTSButton } from '../common/TTSButton';
+import { playMasteryPopSound } from '../../utils/audioEffects';
 
 interface InteractivePracticeViewProps {
   language: LanguageCode;
@@ -80,6 +81,7 @@ export const InteractivePracticeView: React.FC<InteractivePracticeViewProps> = (
   const [evaluatedErrorType, setEvaluatedErrorType] = useState<ErrorType | null>(null);
   const [aiDiagnosis, setAiDiagnosis] = useState<string>('');
   const [masteryDeltaDisplay, setMasteryDeltaDisplay] = useState<string>('');
+  const [masteryPopNotification, setMasteryPopNotification] = useState<{ score: number; delta: number } | null>(null);
 
   const isCorrect = selectedOption === currentQuestion.correctIndex;
   const isLastQuestion = questionIndex === filteredQuestions.length - 1;
@@ -163,6 +165,16 @@ export const InteractivePracticeView: React.FC<InteractivePracticeViewProps> = (
 
     const deltaScore = updatedMastery.overallMastery - currentConceptMastery.overallMastery;
     setMasteryDeltaDisplay(deltaScore >= 0 ? `+${deltaScore}%` : `${deltaScore}%`);
+
+    // Gamified mastery pop animation & sound effect
+    if (deltaScore > 0) {
+      playMasteryPopSound(updatedMastery.overallMastery >= 90);
+      setMasteryPopNotification({
+        score: updatedMastery.overallMastery,
+        delta: deltaScore,
+      });
+      setTimeout(() => setMasteryPopNotification(null), 3200);
+    }
 
     onUpdateMasteries({
       ...masteries,
@@ -491,10 +503,26 @@ export const InteractivePracticeView: React.FC<InteractivePracticeViewProps> = (
                 <div className="flex items-center gap-2 font-bold text-sm">
                   {isCorrect ? (
                     <>
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      <span>
-                        ✓ Correct! Mastery {masteryDeltaDisplay} (Weighted by {confidence.replace('_', ' ')})
-                      </span>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>
+                          ✓ Correct!
+                        </span>
+                        {masteryPopNotification && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500 text-zinc-950 text-xs font-black font-mono shadow-lg animate-bounce ring-2 ring-emerald-300">
+                            <span>+{masteryPopNotification.delta}% Level Up!</span>
+                            <span>({masteryPopNotification.score}% Mastery)</span>
+                          </span>
+                        )}
+                        {!masteryPopNotification && (
+                          <span className="text-zinc-300">
+                            Mastery {masteryDeltaDisplay}
+                          </span>
+                        )}
+                        <span className="text-zinc-400 font-normal text-xs">
+                          (Weighted by {confidence.replace('_', ' ')})
+                        </span>
+                      </div>
                     </>
                   ) : (
                     <>

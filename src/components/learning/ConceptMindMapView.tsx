@@ -15,11 +15,12 @@ import {
   ChevronRight,
   Eye,
 } from 'lucide-react';
-import { MindMapNode } from '../../types';
+import { ConceptMastery, MindMapNode } from '../../types';
 
 interface ConceptMindMapViewProps {
   activeChapterId?: string;
   onSelectConcept?: (conceptId: string, conceptName: string) => void;
+  masteries?: Record<string, ConceptMastery>;
 }
 
 // Rich Hierarchical NCERT Concept Graph Dataset
@@ -218,9 +219,26 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
   ],
 };
 
+// Helper to compute live node mastery score from masteries object or children hierarchy
+export const getNodeMasteryScore = (
+  node: MindMapNode,
+  masteries?: Record<string, ConceptMastery>
+): number => {
+  if (masteries && masteries[node.id]?.overallMastery !== undefined) {
+    return masteries[node.id].overallMastery;
+  }
+  // If this node has children, compute average of children
+  if (node.children && node.children.length > 0) {
+    const scores = node.children.map((c) => getNodeMasteryScore(c, masteries));
+    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  }
+  return node.masteryScore || 75;
+};
+
 export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
   activeChapterId,
   onSelectConcept,
+  masteries,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -295,7 +313,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
         }
       });
 
-    // Node Circles / Shields
+    // Node Circles / Shields with live mastery color
     nodes
       .append('circle')
       .attr('r', (d) => {
@@ -305,7 +323,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
         return 7;
       })
       .attr('fill', (d) => {
-        const score = d.data.masteryScore || 75;
+        const score = getNodeMasteryScore(d.data, masteries);
         if (score >= 90) return '#10b981'; // Emerald
         if (score >= 80) return '#f59e0b'; // Amber Gold
         if (score >= 70) return '#3b82f6'; // Blue
@@ -318,7 +336,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
     // Node Labels
     nodes
       .append('text')
-      .attr('dy', (d) => (d.children ? -12 : 4))
+      .attr('dy', (d) => (d.children ? -12 : -4))
       .attr('x', (d) => (d.children ? 0 : 12))
       .attr('text-anchor', (d) => (d.children ? 'middle' : 'start'))
       .text((d) => d.data.name)
@@ -329,9 +347,61 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
       .style('pointer-events', 'none')
       .style('text-shadow', '0 2px 4px rgba(0,0,0,0.9)');
 
+    // Real-Time Progress Bar on Each Node
+    const pbarGroup = nodes
+      .append('g')
+      .attr('class', 'node-progress-bar')
+      .attr('transform', (d) => (d.children ? 'translate(-26, 8)' : 'translate(12, 6)'));
+
+    // Progress bar track background
+    pbarGroup
+      .append('rect')
+      .attr('width', 46)
+      .attr('height', 4.5)
+      .attr('rx', 2.25)
+      .attr('fill', '#27272a')
+      .attr('stroke', '#3f3f46')
+      .attr('stroke-width', 0.5);
+
+    // Progress bar fill indicating live percentage
+    pbarGroup
+      .append('rect')
+      .attr('width', (d) => {
+        const score = getNodeMasteryScore(d.data, masteries);
+        return Math.max(3, (score / 100) * 46);
+      })
+      .attr('height', 4.5)
+      .attr('rx', 2.25)
+      .attr('fill', (d) => {
+        const score = getNodeMasteryScore(d.data, masteries);
+        if (score >= 90) return '#10b981';
+        if (score >= 80) return '#f59e0b';
+        if (score >= 70) return '#3b82f6';
+        return '#f43f5e';
+      });
+
+    // Progress bar numeric percentage label
+    pbarGroup
+      .append('text')
+      .attr('x', 50)
+      .attr('y', 4.5)
+      .attr('font-size', '8.5px')
+      .attr('font-family', 'monospace')
+      .attr('font-weight', 'bold')
+      .attr('fill', (d) => {
+        const score = getNodeMasteryScore(d.data, masteries);
+        if (score >= 90) return '#34d399';
+        if (score >= 80) return '#fbbf24';
+        return '#93c5fd';
+      })
+      .text((d) => `${getNodeMasteryScore(d.data, masteries)}%`);
+
     // Pulse effect on active node
     nodes
-      .filter((d) => d.data.id === activeChapterId || d.data.masteryScore! >= 95)
+      .filter((d) => {
+        const score = getNodeMasteryScore(d.data, masteries);
+        return d.data.id === activeChapterId || score >= 95;
+      })
       .append('circle')
       .attr('r', 16)
       .attr('fill', 'none')
@@ -339,7 +409,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
       .attr('stroke-width', 1.5)
       .attr('stroke-dasharray', '3 3')
       .attr('class', 'animate-spin');
-  }, [filterCategory, activeChapterId]);
+  }, [filterCategory, activeChapterId, masteries]);
 
   const handleZoomIn = () => {
     if (!svgRef.current) return;
@@ -469,21 +539,49 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
                 <h4 className="text-base font-bold text-zinc-100">{selectedNode.name}</h4>
               </div>
 
-              {/* Mastery Score Progress */}
-              {selectedNode.masteryScore !== undefined && (
-                <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-zinc-400">Concept Mastery Level</span>
-                    <span className="text-amber-400 font-bold">{selectedNode.masteryScore}%</span>
+              {/* Real-Time Mastery Score Progress */}
+              {(() => {
+                const liveScore = getNodeMasteryScore(selectedNode, masteries);
+                const attempts = masteries?.[selectedNode.id]?.attempts || 0;
+                return (
+                  <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-zinc-400">Real-Time Concept Mastery</span>
+                      <span
+                        className={`font-bold ${
+                          liveScore >= 90
+                            ? 'text-emerald-400'
+                            : liveScore >= 80
+                            ? 'text-amber-400'
+                            : liveScore >= 70
+                            ? 'text-blue-400'
+                            : 'text-rose-400'
+                        }`}
+                      >
+                        {liveScore}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-zinc-950 h-2 rounded-full overflow-hidden border border-zinc-800">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          liveScore >= 90
+                            ? 'bg-emerald-500'
+                            : liveScore >= 80
+                            ? 'bg-amber-500'
+                            : liveScore >= 70
+                            ? 'bg-blue-500'
+                            : 'bg-rose-500'
+                        }`}
+                        style={{ width: `${liveScore}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500 pt-0.5">
+                      <span>{attempts > 0 ? `${attempts} attempts tracked` : 'Curriculum baseline'}</span>
+                      <span className="uppercase">{liveScore >= 90 ? 'Diamond Tier' : liveScore >= 80 ? 'Proficient' : 'In Practice'}</span>
+                    </div>
                   </div>
-                  <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-amber-400 h-full transition-all"
-                      style={{ width: `${selectedNode.masteryScore}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Description */}
               {selectedNode.description && (

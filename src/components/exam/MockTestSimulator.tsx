@@ -21,6 +21,8 @@ import {
 } from '../../types';
 import { CURRICULUM_QUESTIONS } from '../../data/curriculum';
 import { getLocalizedText } from '../../data/languages';
+import { recordQuestionAttempt, loadStudentDNA, saveStudentDNA } from '../../services/storageService';
+import { playMasteryPopSound } from '../../utils/audioEffects';
 
 interface MockTestSimulatorProps {
   language: LanguageCode;
@@ -131,8 +133,49 @@ export const MockTestSimulator: React.FC<MockTestSimulatorProps> = ({
 
   const handleSubmitExam = () => {
     setIsSubmitted(true);
+
+    // Record each answered question attempt to student history and update student DNA
+    let attemptedTotal = 0;
+    let correctTotal = 0;
+
+    examQuestions.forEach((q) => {
+      const userAns = answers[q.id]?.selectedOption;
+      if (userAns !== null && userAns !== undefined) {
+        attemptedTotal++;
+        const isCorrect = userAns === q.correctIndex;
+        if (isCorrect) correctTotal++;
+
+        recordQuestionAttempt({
+          id: `att_mock_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          questionId: q.id,
+          conceptId: q.conceptId,
+          chapterId: q.chapterId,
+          subjectId: q.subjectId,
+          selectedOption: userAns,
+          isCorrect,
+          confidence: 'confident',
+          hintsUsed: 0,
+          timeSpentSec: answers[q.id]?.timeSpentSec || 45,
+          timestamp: Date.now(),
+        });
+      }
+    });
+
+    if (attemptedTotal > 0) {
+      const currentDNA = loadStudentDNA();
+      const updatedTotalSolved = (currentDNA.totalQuestionsSolved || 0) + attemptedTotal;
+      const overallAccuracy = Math.round((correctTotal / attemptedTotal) * 100);
+      saveStudentDNA({
+        ...currentDNA,
+        totalQuestionsSolved: updatedTotalSolved,
+        questionAccuracy: Math.round(((currentDNA.questionAccuracy || 75) * 0.7) + (overallAccuracy * 0.3)),
+      });
+
+      playMasteryPopSound(overallAccuracy >= 75);
+    }
+
     confetti({
-      particleCount: 80,
+      particleCount: 90,
       spread: 80,
       origin: { y: 0.5 },
     });

@@ -41,6 +41,19 @@ export async function runAllSystemTests(): Promise<TestResult[]> {
   // 1. SECURITY & ANTI-HACKING GUARD TESTS
   // -------------------------------------------------------------
   const t1Start = performance.now();
+  const originalWarn = console.warn;
+  // Temporarily intercept expected test warning noise in developer console
+  console.warn = (...args: any[]) => {
+    const msg = args[0]?.toString?.() || '';
+    if (
+      msg.includes('Blocked prototype pollution attempt on key: constructor') ||
+      msg.includes('test_tamper_proof_key')
+    ) {
+      return; // Quiet expected simulated negative-assertion probe
+    }
+    originalWarn.apply(console, args);
+  };
+
   try {
     const maliciousXSS = '<script>alert("hacked")</script><iframe src="malicious.site"></iframe>javascript:stealTokens()';
     const sanitized = sanitizeInputString(maliciousXSS);
@@ -133,6 +146,9 @@ export async function runAllSystemTests(): Promise<TestResult[]> {
       durationMs: Math.round(performance.now() - t2Start),
       details: err.message,
     });
+  } finally {
+    // Restore original console.warn
+    console.warn = originalWarn;
   }
 
   // -------------------------------------------------------------

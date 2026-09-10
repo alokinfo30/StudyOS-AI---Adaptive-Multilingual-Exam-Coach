@@ -118,7 +118,8 @@ export interface Subject {
 export type GoalCategory =
   | 'school_board' // Class 10/12 Board Exams
   | 'competitive_entrance' // JEE Main, NEET UG, CUET
-  | 'dev_interview'; // Developer Tech Interviews (Laravel, Python, JS, AI)
+  | 'dev_interview' // Developer Tech Interviews (Laravel, Python, JS, AI)
+  | 'teacher_training'; // B.Ed, BTC, ITI Trainer Apprentice Teaching & Practicum
 
 export type EducationBoard =
   | 'CBSE'

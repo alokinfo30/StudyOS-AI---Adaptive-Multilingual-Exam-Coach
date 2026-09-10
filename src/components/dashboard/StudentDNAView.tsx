@@ -18,23 +18,44 @@ import {
   CheckCircle2,
   Lock,
   Filter,
+  Download,
+  FileText,
+  Table,
+  Check,
 } from 'lucide-react';
-import { ChapterTrophyBadge, LanguageCode, StudentDNA, UserProfile } from '../../types';
+import { ChapterTrophyBadge, LanguageCode, StudentDNA, UserProfile, ConceptMastery } from '../../types';
 import { getLocalizedText } from '../../data/languages';
 import { getStreakModifier } from '../../utils/masteryCalculator';
+import { exportStudyProgressCSV, exportStudyProgressPDF } from '../../utils/exportUtils';
+import { AchievementBadges } from '../profile/AchievementBadges';
 
 interface StudentDNAViewProps {
   language: LanguageCode;
   profile: UserProfile;
   dna: StudentDNA;
+  masteries?: Record<string, ConceptMastery>;
 }
 
 export const StudentDNAView: React.FC<StudentDNAViewProps> = ({
   language,
   profile,
   dna,
+  masteries = {},
 }) => {
   const [selectedTrophyFilter, setSelectedTrophyFilter] = useState<'all' | 'unlocked' | 'in_progress'>('all');
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+
+  const handleExportPDF = () => {
+    exportStudyProgressPDF(profile, dna, masteries);
+    setExportFeedback('PDF report generated & downloaded successfully!');
+    setTimeout(() => setExportFeedback(null), 4000);
+  };
+
+  const handleExportCSV = () => {
+    exportStudyProgressCSV(profile, dna, masteries);
+    setExportFeedback('CSV study data backup downloaded successfully!');
+    setTimeout(() => setExportFeedback(null), 4000);
+  };
 
   const streakInfo = getStreakModifier(dna.consistencyStreak || profile.streakDays || 7);
 
@@ -209,6 +230,41 @@ export const StudentDNAView: React.FC<StudentDNAViewProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Data Portability & Export Controls */}
+        <div className="mt-5 pt-4 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
+            <Download className="w-4 h-4 text-amber-400" />
+            <span>Export study progress, concept masteries & StudentDNA for offline backups or tutors:</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleExportPDF}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/80 flex items-center gap-1.5 transition-all shadow-sm"
+              title="Download print-friendly PDF report"
+            >
+              <FileText className="w-3.5 h-3.5 text-rose-400" />
+              <span>Export PDF Report</span>
+            </button>
+
+            <button
+              onClick={handleExportCSV}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/80 flex items-center gap-1.5 transition-all shadow-sm"
+              title="Download CSV raw metrics table"
+            >
+              <Table className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Export CSV (Excel)</span>
+            </button>
+          </div>
+        </div>
+
+        {exportFeedback && (
+          <div className="mt-3 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono flex items-center gap-2 animate-fadeIn">
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{exportFeedback}</span>
+          </div>
+        )}
       </div>
 
       {/* Daily Streak Cognitive Multiplier Boost Card */}
@@ -267,6 +323,13 @@ export const StudentDNAView: React.FC<StudentDNAViewProps> = ({
           );
         })}
       </div>
+
+      {/* Dynamic Achievement Badges (Mastery Thresholds & Consistency Milestones) */}
+      <AchievementBadges
+        profile={profile}
+        dna={dna}
+        masteries={masteries}
+      />
 
       {/* Chapter Mastery Trophy Vault & Digital Badges Section */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-5">

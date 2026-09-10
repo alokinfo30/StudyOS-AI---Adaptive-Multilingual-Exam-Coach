@@ -480,6 +480,124 @@ Perform a comprehensive code review. Return strictly valid JSON with keys:
   }
 });
 
+// 6. AI-Driven Comment Moderation & Content Analysis API
+app.post('/api/ai/moderate-comment', async (req, res) => {
+  try {
+    const { text, authorRole = 'colleague_trainee', context = 'Apprentice Teaching Reel Review' } = req.body;
+
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.json({
+        success: true,
+        isSafe: true,
+        toxicityScore: 0,
+        flaggedCategories: [],
+        flaggedWords: [],
+        reason: '',
+        constructiveAlternative: '',
+      });
+    }
+
+    // Basic regex check for immediate local filtering
+    const bannedPatterns: RegExp[] = [
+      /\b(fuck|shit|bitch|bastard|asshole|dick|piss|crap|cunt|slut|whore)\b/i,
+      /\b(idiot|stupid|moron|dumb|retard|loser|trash|garbage|clown|scam|hate you|get lost|shut up)\b/i,
+      /\b(worst teacher|pathetic teacher|don't teach|quit teaching|horrible teaching|useless teacher)\b/i,
+      /\b(chutiya|saala|kamina|kutta|harami|bhenchod|madarchod|gandu|bewakoof|pagal|bakwaas|nalayak)\b/i,
+      /\b(ghanta|tatti|chirkut|lallu|dhat teri|bhadwe|ullu ke pathe)\b/i,
+      /\b(kill yourself|die|suicide|disgusting|ugly)\b/i,
+    ];
+
+    const localFlagged: string[] = [];
+    for (const pattern of bannedPatterns) {
+      const match = text.match(pattern);
+      if (match) localFlagged.push(match[0]);
+    }
+
+    if (!ai) {
+      const hasLocalViolations = localFlagged.length > 0;
+      return res.json({
+        success: true,
+        isSafe: !hasLocalViolations,
+        toxicityScore: hasLocalViolations ? 0.9 : 0.05,
+        flaggedCategories: hasLocalViolations ? ['abusive_language', 'disrespectful_insult'] : [],
+        flaggedWords: Array.from(new Set(localFlagged)),
+        reason: hasLocalViolations
+          ? `Contains prohibited or abusive language ("${Array.from(new Set(localFlagged)).join(', ')}") under the Apprentice Educator Code of Conduct.`
+          : '',
+        constructiveAlternative: hasLocalViolations
+          ? 'Consider phrasing feedback constructively: "The concept delivery was earnest, but could be enhanced with clearer blackboard organization."'
+          : text,
+        fallback: true,
+      });
+    }
+
+    const systemInstruction = `You are the Apprentice Educator Campus Conduct & Anti-Abuse AI Content Moderator.
+Your mandate is to maintain a professional, mutually respectful academic environment for student teachers (B.Ed, BTC/D.El.Ed, ITI trainees).
+Analyze the submitted peer comment, critique, or review text.
+Differentiate between:
+1. Constructive pedagogical criticism (e.g., "The speech pace was too fast in minute 2, and the blackboard diagram needed clearer labels") -> isSafe: true, toxicityScore < 0.2.
+2. Abusive, vulgar, harassing, derogatory, mockingly hostile, or demeaning attacks on apprentice educators (English, Hindi, Hinglish) -> isSafe: false, toxicityScore > 0.6.
+
+Return strictly valid JSON with keys:
+- isSafe: boolean
+- toxicityScore: number (0.0 to 1.0)
+- flaggedCategories: string[] (e.g. ["abusive_insult", "profanity", "personal_attack", "hostile_trolling"])
+- flaggedWords: string[] (specific abusive or objectionable phrases found)
+- reason: string (concise explanation of policy breach)
+- constructiveAlternative: string (a professional, polite alternative wording guiding the trainee constructively)`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.7-flash',
+      contents: `Context: ${context}\nAuthor Role: ${authorRole}\nComment to Analyze: "${text}"`,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        temperature: 0.1,
+      },
+    });
+
+    let result = {
+      isSafe: true,
+      toxicityScore: 0.05,
+      flaggedCategories: [] as string[],
+      flaggedWords: [] as string[],
+      reason: '',
+      constructiveAlternative: '',
+    };
+
+    try {
+      result = JSON.parse(response.text || '{}');
+    } catch {
+      // JSON parse fallback
+      result = {
+        isSafe: localFlagged.length === 0,
+        toxicityScore: localFlagged.length > 0 ? 0.85 : 0.1,
+        flaggedCategories: localFlagged.length > 0 ? ['abusive_language'] : [],
+        flaggedWords: localFlagged,
+        reason: localFlagged.length > 0 ? 'Disrespectful language detected.' : '',
+        constructiveAlternative: '',
+      };
+    }
+
+    // Combine any hard-matched local flagged words
+    if (localFlagged.length > 0) {
+      result.isSafe = false;
+      result.flaggedWords = Array.from(new Set([...(result.flaggedWords || []), ...localFlagged]));
+      if (!result.reason) {
+        result.reason = 'Disrespectful or prohibited abusive language detected.';
+      }
+    }
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    console.error('AI Moderation API error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Moderation analysis failed' });
+  }
+});
+
 // Serve Vite build in production
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
