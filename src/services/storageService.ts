@@ -55,6 +55,9 @@ export const DEFAULT_STUDENT_ACCOUNTS: StudentAccount[] = [
     autoSendReportsToParent: false,
     parentReportFrequency: 'daily_summary',
     authProvider: 'guest',
+    enableOfflineTTSLessons: true,
+    ttsSpeechRate: 1.0,
+    ttsAutoPlayLessons: false,
   },
 ];
 
@@ -126,6 +129,18 @@ export async function idbGet<T>(key: string): Promise<T | null> {
   });
 }
 
+export async function idbDelete(key: string): Promise<void> {
+  const db = await openIndexedDB();
+  if (!db) return;
+  try {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    store.delete(key);
+  } catch (e) {
+    console.warn('IndexedDB delete error', e);
+  }
+}
+
 // Warm up offline question cache on launch
 export function initializeOfflineCache(): void {
   try {
@@ -167,7 +182,45 @@ export function loadStudentAccounts(): StudentAccount[] {
     if (raw) {
       const accounts = JSON.parse(raw);
       if (Array.isArray(accounts) && accounts.length > 0) {
-        return accounts;
+        // Automatic Deduplication by normalized email:
+        // Ensure that any duplicate records with identical emails are merged into a single record.
+        const deduplicatedMap = new Map<string, StudentAccount>();
+        for (const acc of accounts) {
+          if (!acc || !acc.id) continue;
+          const emailKey = (acc.email || '').trim().toLowerCase();
+          if (emailKey && emailKey.includes('@') && acc.authProvider !== 'guest') {
+            const existing = deduplicatedMap.get(emailKey);
+            if (existing) {
+              // Merge duplicate into existing record
+              const existingMethods = existing.linkedMethods || (existing.authProvider ? [existing.authProvider] : []);
+              const accMethods = acc.linkedMethods || (acc.authProvider ? [acc.authProvider] : []);
+              const mergedLinked = Array.from(new Set([...existingMethods, ...accMethods]));
+              deduplicatedMap.set(emailKey, {
+                ...existing,
+                name: (existing.name && existing.name !== 'Student' && existing.name !== 'Guest Learner')
+                  ? existing.name
+                  : (acc.name || existing.name),
+                avatar: existing.avatar || acc.avatar,
+                authProvider: acc.authProvider || existing.authProvider,
+                linkedMethods: mergedLinked as any,
+                emailVerified: existing.emailVerified || acc.emailVerified || true,
+                parentPhone: existing.parentPhone || acc.parentPhone,
+                parentName: existing.parentName || acc.parentName,
+                googleProfile: acc.googleProfile || existing.googleProfile,
+              });
+            } else {
+              deduplicatedMap.set(emailKey, acc);
+            }
+          } else {
+            // Guest or non-email account
+            deduplicatedMap.set(acc.id, acc);
+          }
+        }
+        const cleanList = Array.from(deduplicatedMap.values());
+        if (cleanList.length !== accounts.length) {
+          saveStudentAccounts(cleanList);
+        }
+        return cleanList;
       }
     }
   } catch (e) {
@@ -278,63 +331,188 @@ export function createStudentAccount(
   return newAccount;
 }
 
-export function loginOrRegisterWithGoogle(
-  googleEmail: string,
-  googleName: string,
-  googlePicture?: string,
-  googleSub?: string
-): StudentAccount {
-  const accounts = loadStudentAccounts();
-  const existing = accounts.find((a) => a.email.toLowerCase() === googleEmail.toLowerCase());
+export type LoginMethod = 'google' | 'email' | 'phone' | 'roll_number';
 
-  if (existing) {
+export interface UnifiedLoginCredentials {
+  method: LoginMethod;
+  email: string;
+  name?: string;
+  password?: string;
+  phone?: string;
+  rollNumber?: string;
+  schoolOrBoard?: string;
+  picture?: string;
+  sub?: string;
+}
+
+/**
+ * Canonical Email Normalization
+ * Ensures consistent, case-insensitive, whitespace-trimmed email comparison
+ */
+export function normalizeCanonicalEmail(email?: string | null): string {
+  if (!email) return '';
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Canonical Identity Mapping Lookup
+ * Searches accounts registry for a pre-existing student record by normalized email,
+ * regardless of whether the account was registered via Google, Email, or other providers.
+ */
+export function findCanonicalAccountByEmail(
+  email: string,
+  accountsList?: StudentAccount[]
+): { account: StudentAccount; index: number } | null {
+  const normalized = normalizeCanonicalEmail(email);
+  if (!normalized || !normalized.includes('@')) return null;
+
+  const accounts = accountsList || loadStudentAccounts();
+  const index = accounts.findIndex(
+    (a) =>
+      a.authProvider !== 'guest' &&
+      a.email &&
+      normalizeCanonicalEmail(a.email) === normalized
+  );
+
+  if (index === -1) return null;
+  return { account: accounts[index], index };
+}
+
+export function loginOrRegisterStudent(credentials: UnifiedLoginCredentials): StudentAccount {
+  const normalizedEmail = normalizeCanonicalEmail(credentials.email);
+  const accounts = loadStudentAccounts();
+
+  // Canonical Identity Mapping Lookup:
+  // Checks for pre-existing records by email regardless of the auth provider (Google vs. Email),
+  // merging any new profile data into the existing base record instead of creating duplicates.
+  const canonicalMatch = findCanonicalAccountByEmail(normalizedEmail, accounts);
+
+  if (canonicalMatch) {
+    const existing = canonicalMatch.account;
+    const existingIndex = canonicalMatch.index;
+
+    // Merge linked methods (e.g. ['google', 'email'])
+    const existingMethods: LoginMethod[] = Array.isArray(existing.linkedMethods) && existing.linkedMethods.length > 0
+      ? existing.linkedMethods
+      : existing.authProvider && existing.authProvider !== 'guest'
+      ? [existing.authProvider]
+      : [];
+    const mergedLinkedMethods = Array.from(new Set([...existingMethods, credentials.method])) as LoginMethod[];
+
+    // Merge incoming name intelligently
+    const candidateName = credentials.name?.trim();
+    const existingName = existing.name?.trim();
+    const isGenericExisting = !existingName || existingName === 'Student' || existingName === 'Guest Learner';
+    const finalName = candidateName && (isGenericExisting || candidateName.length > 0)
+      ? candidateName
+      : existingName || 'Student';
+
+    // Merge avatars and Google profiles
+    const mergedAvatar =
+      (credentials.method === 'google' && credentials.picture) ||
+      existing.googleProfile?.picture ||
+      credentials.picture ||
+      existing.avatar ||
+      '👨‍🎓';
+
+    const mergedGoogleProfile =
+      credentials.method === 'google' || existing.googleProfile
+        ? {
+            picture: credentials.picture || existing.googleProfile?.picture,
+            sub: credentials.sub || existing.googleProfile?.sub,
+            emailVerified: true,
+          }
+        : undefined;
+
+    // Merge parent info and credentials into single canonical base record
     const updatedExisting: StudentAccount = {
       ...existing,
-      name: googleName || existing.name,
-      authProvider: 'google',
-      googleProfile: {
-        picture: googlePicture || existing.googleProfile?.picture,
-        sub: googleSub,
-        emailVerified: true,
-      },
+      name: finalName,
+      email: normalizedEmail,
+      authProvider: credentials.method,
+      linkedMethods: mergedLinkedMethods,
+      emailVerified: true,
+      parentPhone: credentials.phone || existing.parentPhone,
+      avatar: mergedAvatar,
+      googleProfile: mergedGoogleProfile,
     };
-    const updated = accounts.map((a) => (a.id === existing.id ? updatedExisting : a));
-    saveStudentAccounts(updated);
+
+    // Purge any extraneous duplicates with this canonical email to guarantee 1:1 identity mapping
+    const deduplicatedAccounts = accounts.filter(
+      (a, idx) =>
+        idx === existingIndex ||
+        !a.email ||
+        normalizeCanonicalEmail(a.email) !== normalizedEmail ||
+        a.authProvider === 'guest'
+    );
+
+    const targetIdx = deduplicatedAccounts.findIndex((a) => a.id === existing.id);
+    if (targetIdx !== -1) {
+      deduplicatedAccounts[targetIdx] = updatedExisting;
+    } else {
+      deduplicatedAccounts.push(updatedExisting);
+    }
+
+    saveStudentAccounts(deduplicatedAccounts);
     setActiveStudentId(existing.id);
 
-    // Update profile
-    const p = loadUserProfile(existing.id);
+    // Sync active profile partition while strictly preserving targetScore, streaks, masteries and history
+    const existingProfile = loadUserProfile(existing.id);
     saveUserProfile(
       {
-        ...p,
+        ...existingProfile,
         name: updatedExisting.name,
-        authProvider: 'google',
+        email: normalizedEmail,
+        authProvider: updatedExisting.authProvider,
+        linkedMethods: updatedExisting.linkedMethods,
+        emailVerified: true,
         googleProfile: updatedExisting.googleProfile,
+        parentPhone: updatedExisting.parentPhone || existingProfile.parentPhone,
       },
       existing.id
     );
+
     return updatedExisting;
   }
 
-  // Create new private account for this Google student
+  // New Student Registration (Private isolated partition created)
+  const newId = `student_${credentials.method}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const resolvedName =
+    credentials.name?.trim() ||
+    (normalizedEmail.split('@')[0].replace(/[._]/g, ' ') || 'Student');
+  const formattedName = resolvedName.charAt(0).toUpperCase() + resolvedName.slice(1);
+
   const newAccount: StudentAccount = {
-    id: `student_google_${Date.now()}`,
-    name: googleName,
-    email: googleEmail,
-    avatar: '👨‍🎓',
+    id: newId,
+    name: formattedName,
+    email: normalizedEmail,
+    avatar:
+      credentials.method === 'google' && credentials.picture
+        ? credentials.picture
+        : credentials.method === 'phone'
+        ? '📱'
+        : credentials.method === 'roll_number'
+        ? '🏫'
+        : '👨‍🎓',
     createdAt: Date.now(),
     selectedExam: 'CBSE_10',
     preferredLanguage: 'hi',
     goalCategory: 'school_board',
     selectedBoard: 'CBSE',
-    parentPhone: '+919876543210',
-    parentName: 'Guardian',
-    authProvider: 'google',
-    googleProfile: {
-      picture: googlePicture,
-      sub: googleSub,
-      emailVerified: true,
-    },
+    parentPhone: credentials.phone || '',
+    parentName: '',
+    isGoalConfirmed: false,
+    authProvider: credentials.method,
+    linkedMethods: [credentials.method],
+    emailVerified: true,
+    googleProfile:
+      credentials.method === 'google'
+        ? {
+            picture: credentials.picture,
+            sub: credentials.sub,
+            emailVerified: true,
+          }
+        : undefined,
   };
 
   const updatedAccounts = [...accounts, newAccount];
@@ -354,9 +532,12 @@ export function loginOrRegisterWithGoogle(
     activeRole: 'student',
     goalCategory: 'school_board',
     selectedBoard: 'CBSE',
-    parentPhone: newAccount.parentPhone,
-    parentName: newAccount.parentName,
-    authProvider: 'google',
+    parentPhone: credentials.phone || '',
+    parentName: '',
+    isGoalConfirmed: false,
+    authProvider: newAccount.authProvider,
+    linkedMethods: newAccount.linkedMethods,
+    emailVerified: true,
     googleProfile: newAccount.googleProfile,
     isOfflineMode: false,
   };
@@ -378,6 +559,21 @@ export function loginOrRegisterWithGoogle(
   saveStudentDNA(freshDNA, newAccount.id);
 
   return newAccount;
+}
+
+export function loginOrRegisterWithGoogle(
+  googleEmail: string,
+  googleName: string,
+  googlePicture?: string,
+  googleSub?: string
+): StudentAccount {
+  return loginOrRegisterStudent({
+    method: 'google',
+    email: googleEmail,
+    name: googleName,
+    picture: googlePicture,
+    sub: googleSub,
+  });
 }
 
 export function deleteStudentAccount(studentId: string): void {
@@ -418,8 +614,8 @@ export function loadUserProfile(studentId?: string): UserProfile {
     const raw = localStorage.getItem(getScopedKey('profile', activeId));
     if (raw) {
       const p = JSON.parse(raw);
-      // If user is guest/not authenticated via google, ensure guest name is used
-      if (p.authProvider !== 'google') {
+      // If user is guest/not authenticated, ensure guest values are used
+      if (!p.authProvider || p.authProvider === 'guest') {
         p.name = 'Guest Learner';
         p.email = '';
       }
@@ -431,15 +627,17 @@ export function loadUserProfile(studentId?: string): UserProfile {
 
   const account = loadStudentAccounts().find((a) => a.id === activeId) || DEFAULT_STUDENT_ACCOUNTS[0];
 
+  const isAuthenticated = account.authProvider && account.authProvider !== 'guest';
+
   const defaultProfile: UserProfile = {
     id: account.id,
-    name: account.authProvider === 'google' ? account.name : 'Guest Learner',
-    email: account.authProvider === 'google' ? account.email : '',
+    name: isAuthenticated ? account.name : 'Guest Learner',
+    email: isAuthenticated ? account.email : '',
     preferredLanguage: account.preferredLanguage || 'hi',
     selectedExam: account.selectedExam || 'CBSE_10',
     targetScore: account.selectedExam === 'JEE_MAIN' ? 96 : 90,
     examDate: '2026-03-01',
-    streakDays: account.authProvider === 'google' ? 6 : 0,
+    streakDays: isAuthenticated ? 6 : 0,
     lastActiveDate: new Date().toISOString().split('T')[0],
     activeRole: 'student',
     goalCategory: account.goalCategory || 'school_board',
@@ -454,6 +652,9 @@ export function loadUserProfile(studentId?: string): UserProfile {
     authProvider: account.authProvider || 'guest',
     googleProfile: account.googleProfile,
     isOfflineMode: false,
+    enableOfflineTTSLessons: account.enableOfflineTTSLessons ?? true,
+    ttsSpeechRate: account.ttsSpeechRate ?? 1.0,
+    ttsAutoPlayLessons: account.ttsAutoPlayLessons ?? false,
   };
 
   saveUserProfile(defaultProfile, activeId);
@@ -896,5 +1097,28 @@ export function saveLastCourseSession(session: CourseProgressSession, studentId?
   } catch (e) {
     console.error('Failed to save last course session', e);
   }
+}
+
+export function clearLastCourseSession(studentId?: string): void {
+  const activeId = studentId || getActiveStudentId();
+  try {
+    localStorage.removeItem(getScopedKey('last_course_session', activeId));
+    idbDelete(getScopedKey('last_course_session', activeId));
+  } catch (e) {
+    console.error('Failed to clear last course session', e);
+  }
+}
+
+export function getRegisteredStudentAccounts(): StudentAccount[] {
+  return loadStudentAccounts().filter((a) => a.authProvider !== 'guest' && Boolean(a.email));
+}
+
+export function getRegisteredGoogleAccounts(): StudentAccount[] {
+  return getRegisteredStudentAccounts();
+}
+
+export function removeGoogleAccount(accountId: string): void {
+  const accounts = loadStudentAccounts().filter((a) => a.id !== accountId);
+  saveStudentAccounts(accounts);
 }
 

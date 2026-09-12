@@ -49,10 +49,14 @@ export function useVoiceDictation(options: UseVoiceDictationOptions = {}): UseVo
       return;
     }
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    try {
+      const SpeechRecognitionClass =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
+      if (!SpeechRecognitionClass || typeof SpeechRecognitionClass !== 'function') {
+        setIsSupported(false);
+      }
+    } catch {
       setIsSupported(false);
     }
   }, []);
@@ -98,7 +102,7 @@ export function useVoiceDictation(options: UseVoiceDictationOptions = {}): UseVo
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-      if (!SpeechRecognition) {
+      if (!SpeechRecognition || typeof SpeechRecognition !== 'function') {
         setError('Voice-to-text is not supported in this browser. Please type or use Chrome/Edge/Safari.');
         setIsSupported(false);
         if (options.onError) {

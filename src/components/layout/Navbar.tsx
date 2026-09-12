@@ -1,26 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  Globe,
   Flame,
-  UserCheck,
   ChevronDown,
-  Sparkles,
-  ShieldCheck,
-  Lock,
   Wifi,
   WifiOff,
   BookOpen,
   Target,
-  User,
-  Menu,
-  X,
-  Share2,
-  EyeOff,
-  Maximize2,
   Cpu,
-  Calculator,
-  Users,
-  Network,
+  Lock,
+  LogOut,
+  User,
 } from 'lucide-react';
 import {
   LanguageCode,
@@ -28,15 +17,13 @@ import {
   ExamCategory,
   EducationBoard,
 } from '../../types';
-import { SUPPORTED_LANGUAGES } from '../../data/languages';
-import { LanguageSelectorModal } from './LanguageSelectorModal';
 
 interface NavbarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
   profile: UserProfile;
   onUpdateLanguage: (lang: LanguageCode) => void;
-  onToggleRole: () => void;
+  onToggleRole?: () => void;
   onOpenAITutor: () => void;
   onOpenAccountPrivacy: () => void;
   onToggleOfflineMode?: () => void;
@@ -49,6 +36,7 @@ interface NavbarProps {
   onOpenSelfHealing?: () => void;
   onOpenQuickFormulas?: () => void;
   onOpenPeerMatch?: () => void;
+  onSignOut?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -69,15 +57,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSelfHealing,
   onOpenQuickFormulas,
   onOpenPeerMatch,
+  onSignOut,
 }) => {
-  const [isLangModalOpen, setIsLangModalOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const currentLangObj =
-    SUPPORTED_LANGUAGES.find((l) => l.code === profile.preferredLanguage) ||
-    SUPPORTED_LANGUAGES[0];
-
-  const isLoggedIn = profile.authProvider === 'google';
+  const isLoggedIn = profile.authProvider !== 'guest' && Boolean(profile.email);
 
   // Dynamic Navigation Items based on Goal
   const getNavItems = () => {
@@ -151,7 +133,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleNavClick = (tabId: string) => {
     onSelectTab(tabId);
-    setIsMobileMenuOpen(false);
   };
 
   return (
@@ -239,7 +220,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* Zone 3: Primary Actions (Private Account + Language + AI Coach + Mobile Menu Toggle) */}
+          {/* Zone 3: Header Controls (Offline Mode + Role Switcher + Mobile Menu) */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Offline Mode Indicator & Toggle */}
             <button
@@ -268,87 +249,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Student Private Account & Data Privacy Action */}
-            <button
-              onClick={isLoggedIn ? onOpenAccountPrivacy : (onOpenGoogleAuth || onOpenAccountPrivacy)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-200 hover:border-amber-500/50 hover:bg-zinc-800 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px]"
-              title={isLoggedIn ? "My Private Account & Security Settings" : "Sign In with Google Account"}
-            >
-              <div className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">
-                <Lock className="w-2.5 h-2.5 text-emerald-400" />
-              </div>
-              <span className="max-w-[80px] sm:max-w-[100px] truncate font-medium">
-                {isLoggedIn && profile.name ? profile.name.split(' ')[0] : 'Sign In'}
-              </span>
-            </button>
-
-            {/* Universal Language Switcher */}
-            <button
-              onClick={() => setIsLangModalOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-200 hover:border-amber-500/50 hover:bg-zinc-800 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px]"
-              title="Change Learning Language (TTS & Explanations)"
-            >
-              <Globe className="w-3.5 h-3.5 text-amber-400" />
-              <span className="whitespace-nowrap hidden md:inline">{currentLangObj.nativeName}</span>
-            </button>
-
-            {/* Global Quick Formula Overlay Trigger - Only visible when goal is confirmed */}
-            {profile.isGoalConfirmed && onOpenQuickFormulas && (
-              <button
-                onClick={onOpenQuickFormulas}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-300 hover:text-amber-300 hover:border-amber-500/50 hover:bg-zinc-800 transition-all min-h-[34px]"
-                title="Global Quick Formula Cheat Sheet (Shift + F)"
-              >
-                <Calculator className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-medium whitespace-nowrap">Formulas</span>
-              </button>
-            )}
-
-            {/* Peer Study Match 10-Min Room Trigger */}
-            {onOpenPeerMatch && (
-              <button
-                onClick={onOpenPeerMatch}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-300 hover:text-emerald-300 hover:border-emerald-500/50 hover:bg-zinc-800 transition-all min-h-[34px]"
-                title="Peer Study Match: 10-Minute Collaborative Room"
-              >
-                <Users className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-medium whitespace-nowrap">Peer Room</span>
-              </button>
-            )}
-
-            {/* Distraction-Free Focus Mode Trigger */}
-            {onToggleFocusMode && (
-              <button
-                onClick={onToggleFocusMode}
-                className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px] ${
-                  isFocusMode
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-inner'
-                    : 'bg-zinc-900 border-zinc-700/80 text-zinc-300 hover:text-amber-300 hover:border-amber-500/50 hover:bg-zinc-800'
-                }`}
-                title="Toggle Distraction-Free Focus Mode (Dims Background, Hides Non-Essentials)"
-              >
-                <EyeOff className="w-3.5 h-3.5 text-amber-400" />
-                <span className="whitespace-nowrap font-medium">Focus</span>
-              </button>
-            )}
-
-            {/* Social Share Button */}
-            {onOpenSocialShare && (
-              <button
-                onClick={onOpenSocialShare}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-700/80 text-zinc-300 hover:text-amber-300 hover:border-amber-500/50 hover:bg-zinc-800 transition-all min-h-[34px]"
-                title="Share StudyOS AI on WhatsApp, Instagram, Snapchat, Telegram"
-              >
-                <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-medium whitespace-nowrap">Share</span>
-              </button>
-            )}
-
             {/* Self-Healing Auto-Debugging AI SaaS Pipeline Trigger */}
             {onOpenSelfHealing && (
               <button
                 onClick={onOpenSelfHealing}
-                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 min-h-[34px]"
+                className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 min-h-[34px]"
                 title="Open Self-Healing AI Pipeline (Auto-Error Capture, Tri-Agent Debugging & Vitest Verification)"
               >
                 <Cpu className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
@@ -356,36 +261,56 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* AI Personal Coach Drawer Trigger */}
-            <button
-              onClick={onOpenAITutor}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-zinc-950 hover:bg-amber-400 transition-all shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 min-h-[34px]"
-            >
-              <Sparkles className="w-3.5 h-3.5 fill-zinc-950" />
-              <span className="whitespace-nowrap font-bold">AI Coach</span>
-            </button>
+            {/* User Account / Sign Out / Sign In Identity Control */}
+            {isLoggedIn ? (
+              <div className="flex items-center gap-1.5 pl-1 border-l border-zinc-800/80">
+                <button
+                  type="button"
+                  onClick={onOpenAccountPrivacy}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-750 hover:border-amber-500/50 text-xs text-zinc-200 transition-all cursor-pointer group"
+                  title="Manage Student Account & Switch User"
+                >
+                  {profile.googleProfile?.picture ? (
+                    <img
+                      src={profile.googleProfile.picture}
+                      alt={profile.name}
+                      className="w-4 h-4 rounded-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-[10px] font-bold">
+                      {profile.name?.charAt(0) || 'S'}
+                    </span>
+                  )}
+                  <span className="max-w-[90px] sm:max-w-[120px] truncate font-medium text-zinc-200 group-hover:text-amber-300">
+                    {profile.name || 'Student'}
+                  </span>
+                </button>
 
-            {/* Role Switcher (Student / Parent) */}
-            <button
-              onClick={onToggleRole}
-              className={`p-1.5 rounded-lg border text-xs font-medium transition-all min-h-[34px] min-w-[34px] flex items-center justify-center ${
-                profile.activeRole === 'parent'
-                  ? 'bg-purple-500/20 border-purple-500/50 text-purple-300'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-              }`}
-              title={profile.activeRole === 'parent' ? 'Parent Mode Active' : 'Switch to Parent View'}
-            >
-              <UserCheck className="w-4 h-4" />
-            </button>
-
-            {/* Mobile Hamburger Drawer Button */}
-            <button
-              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-              className="lg:hidden p-1.5 rounded-lg border border-zinc-800 text-zinc-400 hover:text-zinc-200 bg-zinc-900 min-h-[34px] min-w-[34px] flex items-center justify-center"
-              aria-label="Toggle Navigation Menu"
-            >
-              {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
+                {onSignOut && (
+                  <button
+                    type="button"
+                    onClick={onSignOut}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold transition-all cursor-pointer"
+                    title="Sign Out (Wipe active student session from DOM immediately)"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Sign Out</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              onOpenGoogleAuth && (
+                <button
+                  type="button"
+                  onClick={onOpenGoogleAuth}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs transition-all shadow-md cursor-pointer shrink-0"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -415,61 +340,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         )}
       </header>
-
-      {/* Mobile Drawer Dropdown Menu */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-24 z-30 bg-zinc-900/95 border-b border-zinc-800 p-4 space-y-3 shadow-2xl backdrop-blur-md animate-fadeIn">
-          <div className="text-xs font-mono text-zinc-400 uppercase">Quick Actions</div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => {
-                setIsLangModalOpen(true);
-                setIsMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-200"
-            >
-              <Globe className="w-4 h-4 text-amber-400" />
-              <span>Language: {currentLangObj.name}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                onOpenAccountPrivacy();
-                setIsMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-200"
-            >
-              <Lock className="w-4 h-4 text-emerald-400" />
-              <span>Private Account</span>
-            </button>
-
-            {onToggleOfflineMode && (
-              <button
-                onClick={() => {
-                  onToggleOfflineMode();
-                  setIsMobileMenuOpen(false);
-                }}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 col-span-2"
-              >
-                {isOfflineMode ? (
-                  <WifiOff className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Wifi className="w-4 h-4 text-emerald-400" />
-                )}
-                <span>{isOfflineMode ? 'Switch to Online Mode' : 'Simulate Offline Mode'}</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Language Selector Modal */}
-      <LanguageSelectorModal
-        isOpen={isLangModalOpen}
-        onClose={() => setIsLangModalOpen(false)}
-        currentLanguage={profile.preferredLanguage}
-        onSelectLanguage={onUpdateLanguage}
-      />
     </>
   );
 };

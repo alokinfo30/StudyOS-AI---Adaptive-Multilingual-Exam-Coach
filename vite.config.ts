@@ -4,6 +4,7 @@ import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { sendVerificationEmail, verifyEmailCode } from './src/server/emailAuth';
 
 dotenv.config();
 
@@ -47,6 +48,32 @@ function apiDevServerPlugin(): Plugin {
         res.setHeader('Content-Type', 'application/json');
 
         try {
+          if (req.url === '/api/auth/send-verification-code' && req.method === 'POST') {
+            const body = await parseBody();
+            const { email, studentName } = body;
+            if (!email || typeof email !== 'string' || !email.includes('@')) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: 'Valid email is required' }));
+              return;
+            }
+            const result = await sendVerificationEmail(email, studentName);
+            res.end(JSON.stringify(result));
+            return;
+          }
+
+          if (req.url === '/api/auth/verify-code' && req.method === 'POST') {
+            const body = await parseBody();
+            const { email, code } = body;
+            if (!email || !code) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, verified: false, error: 'Email and code are required' }));
+              return;
+            }
+            const result = verifyEmailCode(email, code);
+            res.end(JSON.stringify(result));
+            return;
+          }
+
           if (req.url === '/api/ai/tutor' && req.method === 'POST') {
             const body = await parseBody();
             const { prompt, language = 'en', conceptTitle, context, mode = 'socratic' } = body;

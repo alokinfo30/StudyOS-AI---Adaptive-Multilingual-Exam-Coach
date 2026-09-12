@@ -24,7 +24,7 @@ export class MicroTeachingSpeechRecognizer {
     if (typeof window !== 'undefined') {
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
+      if (SpeechRecognition && typeof SpeechRecognition === 'function') {
         try {
           this.recognition = new SpeechRecognition();
           this.recognition.continuous = true;

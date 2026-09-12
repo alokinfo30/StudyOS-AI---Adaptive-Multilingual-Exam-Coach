@@ -68,6 +68,7 @@ export const FocusModeOverlay: React.FC<FocusModeOverlayProps> = ({
     } else {
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx || typeof AudioCtx !== 'function') return;
         const ctx = new AudioCtx();
         audioContextRef.current = ctx;
 

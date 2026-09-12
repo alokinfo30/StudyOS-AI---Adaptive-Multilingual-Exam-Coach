@@ -13,6 +13,7 @@ import {
   Key,
   Palette,
   Check,
+  Volume2,
 } from 'lucide-react';
 import { UserProfile, LanguageCode, ExamCategory, EducationBoard, CustomAccentColor } from '../../types';
 import { ACCENT_COLOR_PALETTES, applyAccentColorToDocument } from '../../utils/themeUtils';
@@ -23,6 +24,7 @@ interface AccountPrivacyModalProps {
   profile: UserProfile;
   onUpdateProfile: (updated: UserProfile) => void;
   onOpenGoogleAuth: () => void;
+  onSignOut?: () => void;
 }
 
 export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
@@ -31,11 +33,15 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
   profile,
   onUpdateProfile,
   onOpenGoogleAuth,
+  onSignOut,
 }) => {
   const [name, setName] = useState(profile.name);
   const [email, setEmail] = useState(profile.email);
   const [parentPhone, setParentPhone] = useState(profile.parentPhone || '+919876543210');
   const [selectedAccent, setSelectedAccent] = useState<CustomAccentColor>(profile.accentColor || 'amber');
+  const [enableOfflineTTSLessons, setEnableOfflineTTSLessons] = useState<boolean>(
+    profile.enableOfflineTTSLessons ?? true
+  );
   const [savedToast, setSavedToast] = useState(false);
 
   if (!isOpen) return null;
@@ -53,6 +59,7 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
       email,
       parentPhone,
       accentColor: selectedAccent,
+      enableOfflineTTSLessons,
     };
     applyAccentColorToDocument(selectedAccent);
     onUpdateProfile(updatedProfile);
@@ -143,9 +150,11 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
             </div>
             <div>
               <div className="text-xs font-bold text-zinc-200">
-                {profile.authProvider === 'google' ? 'Google Account Connected' : 'Guest Account'}
+                {profile.authProvider && profile.authProvider !== 'guest'
+                  ? `${profile.authProvider.charAt(0).toUpperCase() + profile.authProvider.slice(1)} Connected`
+                  : 'Guest Account'}
               </div>
-              <div className="text-[11px] text-zinc-400 font-mono">{profile.email}</div>
+              <div className="text-[11px] text-zinc-400 font-mono">{profile.email || 'No email linked'}</div>
             </div>
           </div>
 
@@ -155,9 +164,9 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
               onClose();
               onOpenGoogleAuth();
             }}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors cursor-pointer"
           >
-            {profile.authProvider === 'google' ? 'Manage' : 'Sign in'}
+            {profile.authProvider && profile.authProvider !== 'guest' ? 'Manage' : 'Sign in'}
           </button>
         </div>
 
@@ -250,6 +259,30 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
             </p>
           </div>
 
+          {/* Offline-First Web Speech API Lesson Synthesis Toggle */}
+          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-mono uppercase text-zinc-200 font-bold">
+                  Offline Lesson Speech (Web Speech API)
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enableOfflineTTSLessons}
+                  onChange={(e) => setEnableOfflineTTSLessons(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+              </label>
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Enable offline-first voice narration across all lessons using the browser's Web Speech API with 0% data usage.
+            </p>
+          </div>
+
           {savedToast && (
             <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs rounded-xl flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -272,6 +305,23 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
               Save Changes
             </button>
           </div>
+
+          {/* Strict Session Wiping & Logout Action */}
+          {profile.authProvider && profile.authProvider !== 'guest' && onSignOut && (
+            <div className="pt-3 border-t border-zinc-800/80">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onSignOut();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out of Active Student Session (Wipe from DOM)</span>
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>

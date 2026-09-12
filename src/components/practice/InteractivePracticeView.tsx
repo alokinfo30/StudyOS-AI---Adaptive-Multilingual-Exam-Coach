@@ -43,6 +43,7 @@ import { diagnoseStudentError } from '../../services/geminiService';
 import { FailureRecoveryModal } from './FailureRecoveryModal';
 import { TTSButton } from '../common/TTSButton';
 import { playMasteryPopSound } from '../../utils/audioEffects';
+import { ExamCountdownTimerWidget } from '../common/ExamCountdownTimerWidget';
 
 interface InteractivePracticeViewProps {
   language: LanguageCode;
@@ -664,6 +665,12 @@ export const InteractivePracticeView: React.FC<InteractivePracticeViewProps> = (
         onClose={() => setShowRecoveryModal(false)}
         conceptTitle={currentQuestion.conceptId}
         language={language}
+      />
+
+      {/* Persistent Unobtrusive Exam Countdown & Pacing Timer Widget */}
+      <ExamCountdownTimerWidget
+        targetExam={profile.selectedExam}
+        currentQuestionIndex={questionIndex}
       />
     </div>
   );

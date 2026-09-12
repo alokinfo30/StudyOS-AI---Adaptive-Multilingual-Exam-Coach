@@ -99,11 +99,15 @@ export interface Concept {
 export interface Chapter {
   id: string;
   subjectId: string;
+  chapterNo?: number;
   title: LocalizedString;
   description: LocalizedString;
   concepts: Concept[];
   targetMastery: number; // e.g. 90%
   highYieldWeightage: number; // e.g. 12% in JEE/Boards
+  textbookRef?: string;
+  board?: EducationBoard;
+  classLevel?: '9' | '10' | '11' | '12' | string;
 }
 
 export interface Subject {
@@ -112,6 +116,9 @@ export interface Subject {
   icon: string;
   color: string;
   exam: ExamCategory;
+  board?: EducationBoard;
+  classLevel?: '9' | '10' | '11' | '12' | string;
+  textbookStandard?: string;
   chapters: Chapter[];
 }
 
@@ -397,7 +404,12 @@ export interface StudentAccount {
   autoSendReportsToParent?: boolean;
   parentReportFrequency?: 'realtime_each_progress' | 'daily_summary' | 'milestones_only';
   lastAutoDispatchedAt?: number;
-  authProvider?: 'google' | 'guest';
+  authProvider?: 'google' | 'email' | 'phone' | 'roll_number' | 'guest';
+  linkedMethods?: ('google' | 'email' | 'phone' | 'roll_number')[];
+  emailVerified?: boolean;
+  enableOfflineTTSLessons?: boolean; // Offline-first text-to-speech synthesis using browser's Web Speech API for all lessons
+  ttsSpeechRate?: number; // Offline speech rate (0.8x, 1.0x, 1.25x)
+  ttsAutoPlayLessons?: boolean; // Auto-narrate concept explanation blocks
   googleProfile?: {
     picture?: string;
     sub?: string;
@@ -418,6 +430,7 @@ export interface UserProfile {
   activeRole: 'student' | 'parent';
   goalCategory?: GoalCategory;
   selectedBoard?: EducationBoard;
+  selectedClass?: '9' | '10' | '11' | '12' | string;
   selectedTechTrack?: TechTrack;
   developerLevel?: DeveloperLevel;
   isOfflineMode?: boolean;
@@ -429,8 +442,13 @@ export interface UserProfile {
   autoSendReportsToParent?: boolean; // Automatic background progress dispatch to parents mobile
   parentReportFrequency?: 'realtime_each_progress' | 'daily_summary' | 'milestones_only';
   lastAutoDispatchedAt?: number;
-  authProvider?: 'google' | 'guest';
+  authProvider?: 'google' | 'email' | 'phone' | 'roll_number' | 'guest';
+  linkedMethods?: ('google' | 'email' | 'phone' | 'roll_number')[];
+  emailVerified?: boolean;
   accentColor?: CustomAccentColor;
+  enableOfflineTTSLessons?: boolean; // Offline-first text-to-speech synthesis using browser's Web Speech API for all lessons
+  ttsSpeechRate?: number; // Offline speech rate (0.8x, 1.0x, 1.25x)
+  ttsAutoPlayLessons?: boolean; // Auto-narrate concept explanation blocks
   googleProfile?: {
     picture?: string;
     sub?: string;

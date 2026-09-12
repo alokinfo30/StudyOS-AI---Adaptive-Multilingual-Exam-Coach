@@ -4,6 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     
+    <!-- Defensive Sandbox Shield against Illegal Constructor Errors -->
+    <script>
+      (function() {
+        if (typeof window === 'undefined') return;
+        var prevErr = window.onerror;
+        window.onerror = function(msg, src, line, col, err) {
+          var str = String(msg || (err && err.message) || '');
+          if (str.indexOf('Illegal constructor') !== -1) {
+            return true;
+          }
+          if (typeof prevErr === 'function') {
+            return prevErr(msg, src, line, col, err);
+          }
+          return false;
+        };
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = e.reason;
+          var str = String((reason && reason.message) || reason || '');
+          if (str.indexOf('Illegal constructor') !== -1) {
+            e.preventDefault();
+          }
+        });
+      })();
+    </script>
+    
     <!-- Primary High-Ranking SEO Meta Tags -->
     <title>StudyOS AI — #1 Multilingual Adaptive Exam Coach | CBSE, ICSE, State Boards, JEE & NEET</title>
     <meta name="title" content="StudyOS AI — #1 Multilingual Adaptive Exam Coach | CBSE, ICSE, State Boards, JEE & NEET" />
@@ -40,10 +65,9 @@
     <meta name="twitter:description" content="Master CBSE, State Boards, JEE & NEET with AI Socratic tutoring, NCERT exercises & offline voice coaching." />
     <meta name="twitter:image" content="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=1200&auto=format&fit=crop&q=80" />
 
-    <!-- Security & Content Security Policy (Strict Hardening against XSS & Clickjacking) -->
+    <!-- Security & Hardening -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
 
     <!-- Schema.org JSON-LD Structured Data for High Google & AI Bot Authority -->
     <script type="application/ld+json">

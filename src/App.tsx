@@ -27,10 +27,15 @@ import {
   loadQuestionAttempts,
   initializeOfflineCache,
   loginOrRegisterWithGoogle,
+  loginOrRegisterStudent,
+  LoginMethod,
   checkAndDispatchPeriodicParentReport,
+  clearLastCourseSession,
 } from './services/storageService';
 import { calculateConfidenceWeightedAccuracy } from './utils/masteryCalculator';
 import { Navbar } from './components/layout/Navbar';
+import { FloatingUtilitySlider } from './components/layout/FloatingUtilitySlider';
+import { LanguageSelectorModal } from './components/layout/LanguageSelectorModal';
 import { StudyOSHomeView } from './components/home/StudyOSHomeView';
 import { DailyMissionView } from './components/dashboard/DailyMissionView';
 import { InteractiveLessonView } from './components/learning/InteractiveLessonView';
@@ -57,6 +62,7 @@ import { ConceptMindMapView } from './components/learning/ConceptMindMapView';
 import { ApprenticeEducatorHub } from './components/teaching/ApprenticeEducatorHub';
 import { applyAccentColorToDocument } from './utils/themeUtils';
 import { playMasteryPopSound } from './utils/audioEffects';
+import { SessionSentinel } from './utils/sessionSentinel';
 import { WifiOff, Zap } from 'lucide-react';
 
 export default function App() {
@@ -73,11 +79,13 @@ export default function App() {
   const [isAICoachOpen, setIsAICoachOpen] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
   const [isGoogleAuthOpen, setIsGoogleAuthOpen] = useState<boolean>(false);
+  const [isVerifyingAuth, setIsVerifyingAuth] = useState<boolean>(false);
   const [isAccountPrivacyOpen, setIsAccountPrivacyOpen] = useState<boolean>(false);
   const [isParentReportOpen, setIsParentReportOpen] = useState<boolean>(false);
   const [isParentMobileRequiredOpen, setIsParentMobileRequiredOpen] = useState<boolean>(false);
   const [pendingLearningTab, setPendingLearningTab] = useState<string | null>(null);
   const [isSocialShareOpen, setIsSocialShareOpen] = useState<boolean>(false);
+  const [isLangModalOpen, setIsLangModalOpen] = useState<boolean>(false);
   const [isSelfHealingOpen, setIsSelfHealingOpen] = useState<boolean>(false);
   const [isFormulaOverlayOpen, setIsFormulaOverlayOpen] = useState<boolean>(false);
   const [isPeerMatchOpen, setIsPeerMatchOpen] = useState<boolean>(false);
@@ -86,6 +94,7 @@ export default function App() {
     delta: number;
     newScore: number;
   } | null>(null);
+  const [lastLoginTimestamp, setLastLoginTimestamp] = useState<number>(0);
   const [focusModeState, setFocusModeState] = useState<FocusModeState>({
     isActive: false,
     sessionStartTime: 0,
@@ -101,10 +110,16 @@ export default function App() {
     applyAccentColorToDocument(profile.accentColor || 'amber');
   }, [profile.accentColor]);
 
-  // Global keyboard shortcut for Quick Formula Cheat-Sheet (Shift + F) - Only when goal confirmed
+  // Global keyboard shortcut for Quick Formula Cheat-Sheet (Shift + F) - Only when logged in & goal confirmed
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+        const isStudentLoggedIn = profile.authProvider !== 'guest' && Boolean(profile.email);
+        if (!isStudentLoggedIn) {
+          e.preventDefault();
+          setIsGoogleAuthOpen(true);
+          return;
+        }
         if (profile.isGoalConfirmed) {
           e.preventDefault();
           setIsFormulaOverlayOpen((prev) => !prev);
@@ -113,7 +128,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [profile.isGoalConfirmed]);
+  }, [profile.isGoalConfirmed, profile.authProvider, profile.email]);
 
   const toggleFocusMode = () => {
     setFocusModeState((prev) => ({
@@ -156,10 +171,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, [profile.autoSendReportsToParent, profile.parentPhone, activeStudentId]);
 
-  // Google / Gmail Login Integration
-  const handleGoogleLoginSuccess = (email: string, name: string, picture?: string) => {
-    const account = loginOrRegisterWithGoogle(email, name, picture);
+  // Unified Student Login Integration (Google, Email, Phone, Roll Number)
+  const handleGoogleLoginSuccess = (
+    email: string,
+    name: string,
+    picture?: string,
+    method: LoginMethod = 'google',
+    phone?: string
+  ) => {
+    const account = loginOrRegisterStudent({
+      method,
+      email,
+      name,
+      picture,
+      phone,
+    });
     setActiveId(account.id);
+    setActiveStudentId(account.id);
     const nextProfile = loadUserProfile(account.id);
     const nextMasteries = loadConceptMasteries(account.id);
     const nextDna = loadStudentDNA(account.id);
@@ -167,18 +195,28 @@ export default function App() {
     setProfile(nextProfile);
     setMasteries(nextMasteries);
     setDna(nextDna);
+    setLastLoginTimestamp(Date.now());
+    setCurrentTab('home');
   };
 
   const handleSignOutGoogle = () => {
-    const updated: UserProfile = {
-      ...profile,
-      authProvider: 'guest',
-      googleProfile: undefined,
-    };
-    setProfile(updated);
-    saveUserProfile(updated, activeStudentId);
-    setIsGoogleAuthOpen(false);
-    setCurrentTab('home');
+    setActiveId('guest_student');
+    SessionSentinel.terminateSession({
+      studentId: activeStudentId,
+      reactBranches: {
+        setProfile,
+        setMasteries,
+        setDna,
+        setLastLoginTimestamp,
+        setIsVerifyingAuth,
+        setCurrentTab,
+        setPendingLearningTab,
+      },
+      onComplete: () => {
+        setIsGoogleAuthOpen(false);
+        setIsAccountPrivacyOpen(false);
+      },
+    });
   };
 
   // Sync state changes to storage for active student
@@ -193,6 +231,7 @@ export default function App() {
     goalCategory: GoalCategory;
     selectedExam: ExamCategory;
     selectedBoard?: EducationBoard;
+    selectedClass?: '9' | '10' | '11' | '12' | string;
     selectedTechTrack?: TechTrack;
     developerLevel?: DeveloperLevel;
     preferredLanguage: LanguageCode;
@@ -205,6 +244,7 @@ export default function App() {
       goalCategory: updates.goalCategory,
       selectedExam: updates.selectedExam,
       selectedBoard: updates.selectedBoard,
+      selectedClass: updates.selectedClass || (updates.selectedExam?.includes('12') ? '12' : '10'),
       selectedTechTrack: updates.selectedTechTrack,
       developerLevel: updates.developerLevel,
       preferredLanguage: updates.preferredLanguage,
@@ -332,7 +372,7 @@ export default function App() {
       saveUserProfile(updated, activeStudentId);
     }
 
-    const isLoggedIn = profile.authProvider === 'google';
+    const isStudentLoggedIn = profile.authProvider !== 'guest' && Boolean(profile.email);
     const protectedTabs = [
       'mission',
       'learn',
@@ -344,9 +384,10 @@ export default function App() {
       'dna',
       'career',
       'dev_prep',
+      'parent',
     ];
 
-    if (!isLoggedIn && protectedTabs.includes(targetTab)) {
+    if (!isStudentLoggedIn && protectedTabs.includes(targetTab)) {
       setIsGoogleAuthOpen(true);
       return;
     }
@@ -388,6 +429,11 @@ export default function App() {
   };
 
   const handleToggleRole = () => {
+    const isStudentLoggedIn = profile.authProvider !== 'guest' && Boolean(profile.email);
+    if (!isStudentLoggedIn) {
+      setIsGoogleAuthOpen(true);
+      return;
+    }
     const nextRole = profile.activeRole === 'student' ? 'parent' : 'student';
     const updated = { ...profile, activeRole: nextRole };
     setProfile(updated);
@@ -409,6 +455,8 @@ export default function App() {
   const toggleOfflineSimulation = () => {
     setIsOfflineMode((prev) => !prev);
   };
+
+  const isStudentLoggedIn = profile.authProvider !== 'guest' && Boolean(profile.email);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans antialiased flex flex-col selection:bg-amber-500 selection:text-zinc-950">
@@ -456,7 +504,13 @@ export default function App() {
           profile={profile}
           onUpdateLanguage={handleUpdateLanguage}
           onToggleRole={handleToggleRole}
-          onOpenAITutor={() => setIsAICoachOpen(true)}
+          onOpenAITutor={() => {
+            if (!isStudentLoggedIn) {
+              setIsGoogleAuthOpen(true);
+              return;
+            }
+            setIsAICoachOpen(true);
+          }}
           onOpenAccountPrivacy={() => setIsAccountPrivacyOpen(true)}
           onToggleOfflineMode={toggleOfflineSimulation}
           isOfflineMode={isOfflineMode}
@@ -466,16 +520,31 @@ export default function App() {
           isFocusMode={focusModeState.isActive}
           onToggleFocusMode={toggleFocusMode}
           onOpenSelfHealing={() => setIsSelfHealingOpen(true)}
-          onOpenQuickFormulas={() => setIsFormulaOverlayOpen(true)}
-          onOpenPeerMatch={() => setIsPeerMatchOpen(true)}
+          onOpenQuickFormulas={() => {
+            if (!isStudentLoggedIn) {
+              setIsGoogleAuthOpen(true);
+              return;
+            }
+            setIsFormulaOverlayOpen(true);
+          }}
+          onOpenPeerMatch={() => {
+            if (!isStudentLoggedIn) {
+              setIsGoogleAuthOpen(true);
+              return;
+            }
+            setIsPeerMatchOpen(true);
+          }}
+          onSignOut={handleSignOutGoogle}
         />
       )}
 
       {/* Main Content Workspace (Adaptive across Mobile, Tablet, Desktop) */}
-      <main className={`flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 transition-all ${
+      <main className={`flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 transition-all duration-300 ${
         focusModeState.isActive ? 'bg-zinc-950/90 rounded-2xl my-2 shadow-2xl ring-1 ring-amber-500/20' : ''
+      } ${
+        isVerifyingAuth ? 'opacity-25 pointer-events-none filter blur-[1.5px] select-none scale-[0.99]' : ''
       }`}>
-        {profile.activeRole === 'parent' || currentTab === 'parent' ? (
+        {isStudentLoggedIn && (profile.activeRole === 'parent' || currentTab === 'parent') ? (
           <ParentDashboardView
             language={profile.preferredLanguage}
             profile={profile}
@@ -489,17 +558,41 @@ export default function App() {
           />
         ) : (
           <>
-            {(profile.authProvider !== 'google' || currentTab === 'home') && (
+            {(!isStudentLoggedIn || currentTab === 'home') && (
               <StudyOSHomeView
                 language={profile.preferredLanguage}
                 profile={profile}
                 onConfirmGoal={handleConfirmGoal}
                 onNavigateTab={handleNavigateWithParentCheck}
                 onOpenGoogleAuth={() => setIsGoogleAuthOpen(true)}
+                onOpenPeerRoom={() => {
+                  if (!isStudentLoggedIn) {
+                    setIsGoogleAuthOpen(true);
+                    return;
+                  }
+                  setIsPeerMatchOpen(true);
+                }}
+                onOpenFormulas={() => {
+                  if (!isStudentLoggedIn) {
+                    setIsGoogleAuthOpen(true);
+                    return;
+                  }
+                  setIsFormulaOverlayOpen(true);
+                }}
+                onOpenExamCoach={() => {
+                  if (!isStudentLoggedIn) {
+                    setIsGoogleAuthOpen(true);
+                    return;
+                  }
+                  setIsAICoachOpen(true);
+                }}
+                onOpenUserProfile={() => setIsAccountPrivacyOpen(true)}
+                onToggleRole={handleToggleRole}
+                loginTimestamp={lastLoginTimestamp}
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'mission' && (
+            {isStudentLoggedIn && currentTab === 'mission' && (
               <DailyMissionView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -509,7 +602,7 @@ export default function App() {
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'learn' && (
+            {isStudentLoggedIn && currentTab === 'learn' && (
               <InteractiveLessonView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -519,10 +612,20 @@ export default function App() {
                 onOpenQuickFormulas={() => setIsFormulaOverlayOpen(true)}
                 onOpenPeerMatch={() => setIsPeerMatchOpen(true)}
                 onOpenMindMap={() => handleNavigateWithParentCheck('mindmap')}
+                onOpenLanguageSettings={() => setIsLangModalOpen(true)}
+                onToggleOfflineTTS={(enabled) => {
+                  const updated: UserProfile = { ...profile, enableOfflineTTSLessons: enabled };
+                  setProfile(updated);
+                  saveUserProfile(updated, activeStudentId);
+                }}
+                onUpdateProfile={(updatedProfile) => {
+                  setProfile(updatedProfile);
+                  saveUserProfile(updatedProfile, activeStudentId);
+                }}
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'mindmap' && (
+            {isStudentLoggedIn && currentTab === 'mindmap' && (
               <div className="space-y-6">
                 <ConceptMindMapView
                   masteries={masteries}
@@ -533,7 +636,7 @@ export default function App() {
               </div>
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'practice' && (
+            {isStudentLoggedIn && currentTab === 'practice' && (
               <InteractivePracticeView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -542,21 +645,21 @@ export default function App() {
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'revision' && (
+            {isStudentLoggedIn && currentTab === 'revision' && (
               <SpacedRepetitionView
                 language={profile.preferredLanguage}
                 profile={profile}
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'mock_exam' && (
+            {isStudentLoggedIn && currentTab === 'mock_exam' && (
               <MockTestSimulator
                 language={profile.preferredLanguage}
                 profile={profile}
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'readiness' && (
+            {isStudentLoggedIn && currentTab === 'readiness' && (
               <ExamReadinessView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -566,14 +669,14 @@ export default function App() {
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'dev_prep' && (
+            {isStudentLoggedIn && currentTab === 'dev_prep' && (
               <TechInterviewPrepView
                 language={profile.preferredLanguage}
                 profile={profile}
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'dna' && (
+            {isStudentLoggedIn && currentTab === 'dna' && (
               <StudentDNAView
                 language={profile.preferredLanguage}
                 profile={profile}
@@ -582,11 +685,11 @@ export default function App() {
               />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'apprentice_teaching' && (
+            {isStudentLoggedIn && currentTab === 'apprentice_teaching' && (
               <ApprenticeEducatorHub />
             )}
 
-            {profile.authProvider === 'google' && currentTab === 'career' && (
+            {isStudentLoggedIn && currentTab === 'career' && (
               <CareerRoadmapView language={profile.preferredLanguage} />
             )}
           </>
@@ -594,11 +697,13 @@ export default function App() {
       </main>
 
       {/* AI Socratic Coach Floating Drawer */}
-      <AICoachDrawer
-        isOpen={isAICoachOpen}
-        onClose={() => setIsAICoachOpen(false)}
-        language={profile.preferredLanguage}
-      />
+      {isStudentLoggedIn && (
+        <AICoachDrawer
+          isOpen={isAICoachOpen}
+          onClose={() => setIsAICoachOpen(false)}
+          language={profile.preferredLanguage}
+        />
+      )}
 
       {/* Student Private Account & Data Isolation Modal */}
       <AccountPrivacyModal
@@ -610,6 +715,7 @@ export default function App() {
           saveUserProfile(updated, activeStudentId);
         }}
         onOpenGoogleAuth={() => setIsGoogleAuthOpen(true)}
+        onSignOut={handleSignOutGoogle}
       />
 
       {/* Google / Gmail Authentication Modal */}
@@ -619,7 +725,30 @@ export default function App() {
         profile={profile}
         onGoogleLoginSuccess={handleGoogleLoginSuccess}
         onSignOut={handleSignOutGoogle}
+        onVerificationStateChange={setIsVerifyingAuth}
       />
+
+      {/* Loading-on-Verify State Overlay: visually dims dashboard while auth codes are pending verification */}
+      {isVerifyingAuth && (
+        <div
+          id="loading-on-verify-overlay"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none animate-fadeIn"
+        >
+          <div className="p-5 rounded-2xl bg-zinc-900/95 border border-amber-500/40 shadow-2xl max-w-sm w-full mx-4 text-center space-y-3 pointer-events-auto">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+              <Zap className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-zinc-100 flex items-center justify-center gap-1.5">
+                <span>Verification Code Pending</span>
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                Dashboard is visually dimmed and interaction is locked while your 6-digit authentication code is pending verification.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Parent Mobile Report Dispatch Modal */}
       <ParentMobileReportModal
@@ -683,17 +812,21 @@ export default function App() {
       />
 
       {/* Global Quick Formula Cheat-Sheet Overlay (Shift + F) */}
-      <QuickFormulaOverlay
-        isOpen={isFormulaOverlayOpen}
-        onClose={() => setIsFormulaOverlayOpen(false)}
-      />
+      {isStudentLoggedIn && (
+        <QuickFormulaOverlay
+          isOpen={isFormulaOverlayOpen}
+          onClose={() => setIsFormulaOverlayOpen(false)}
+        />
+      )}
 
       {/* 10-Minute Peer Study Match Collaborative Room */}
-      <PeerStudyMatch
-        isOpen={isPeerMatchOpen}
-        onClose={() => setIsPeerMatchOpen(false)}
-        userProfile={profile}
-      />
+      {isStudentLoggedIn && (
+        <PeerStudyMatch
+          isOpen={isPeerMatchOpen}
+          onClose={() => setIsPeerMatchOpen(false)}
+          userProfile={profile}
+        />
+      )}
 
       {/* Gamified Mastery Pop Level-Up Toast */}
       {masteryPopAlert && (
@@ -712,6 +845,22 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Floating Right Overflow Utility Slider (Language, Focus, Share) */}
+      <FloatingUtilitySlider
+        currentLanguage={profile.preferredLanguage}
+        onOpenLanguageModal={() => setIsLangModalOpen(true)}
+        isFocusMode={focusModeState.isActive}
+        onToggleFocusMode={toggleFocusMode}
+        onOpenSocialShare={() => setIsSocialShareOpen(true)}
+      />
+
+      {/* Universal Language Selector Modal */}
+      <LanguageSelectorModal
+        isOpen={isLangModalOpen}
+        onClose={() => setIsLangModalOpen(false)}
+        currentLanguage={profile.preferredLanguage}
+        onSelectLanguage={handleUpdateLanguage}
+      />
     </div>
   );
 }

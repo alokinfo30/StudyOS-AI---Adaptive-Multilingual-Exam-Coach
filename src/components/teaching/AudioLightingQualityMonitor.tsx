@@ -80,7 +80,7 @@ export const AudioLightingQualityMonitor: React.FC<AudioLightingQualityMonitorPr
     try {
       if (streamRef.current && streamRef.current.getAudioTracks().length > 0) {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx) {
+        if (AudioCtx && typeof AudioCtx === 'function') {
           const ctx = new AudioCtx();
           audioContextRef.current = ctx;
 

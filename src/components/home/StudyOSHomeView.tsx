@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   BookOpen,
@@ -25,6 +25,9 @@ import {
   User,
   AlertCircle,
   X,
+  Users,
+  Calculator,
+  UserCheck,
 } from 'lucide-react';
 import {
   LanguageCode,
@@ -52,6 +55,7 @@ interface StudyOSHomeViewProps {
     goalCategory: GoalCategory;
     selectedExam: ExamCategory;
     selectedBoard?: EducationBoard;
+    selectedClass?: '9' | '10' | '11' | '12' | string;
     selectedTechTrack?: TechTrack;
     developerLevel?: DeveloperLevel;
     preferredLanguage: LanguageCode;
@@ -61,6 +65,12 @@ interface StudyOSHomeViewProps {
   }) => void;
   onNavigateTab: (tab: string) => void;
   onOpenGoogleAuth?: () => void;
+  onOpenPeerRoom?: () => void;
+  onOpenFormulas?: () => void;
+  onOpenExamCoach?: () => void;
+  onOpenUserProfile?: () => void;
+  onToggleRole?: () => void;
+  loginTimestamp?: number;
 }
 
 export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
@@ -69,13 +79,21 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
   onConfirmGoal,
   onNavigateTab,
   onOpenGoogleAuth,
+  onOpenPeerRoom,
+  onOpenFormulas,
+  onOpenExamCoach,
+  onOpenUserProfile,
+  onToggleRole,
+  loginTimestamp = 0,
 }) => {
   // Auth state
-  const isLoggedIn = profile.authProvider === 'google';
+  const isLoggedIn = profile.authProvider !== 'guest' && Boolean(profile.email);
   const [showAuthGateModal, setShowAuthGateModal] = useState(false);
 
   // 4-Step Onboarding Wizard State
-  const [wizardStep, setWizardStep] = useState<number>(1);
+  const [wizardStep, setWizardStep] = useState<number>(() => {
+    return isLoggedIn ? 2 : 1;
+  });
   const [selectedGoal, setSelectedGoal] = useState<GoalCategory>(
     profile.goalCategory || 'school_board'
   );
@@ -94,7 +112,12 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
   const [selectedLang, setSelectedLang] = useState<LanguageCode>(
     profile.preferredLanguage || language || 'hi'
   );
-  const [selectedClass, setSelectedClass] = useState<'10' | '12'>('10');
+  const [selectedClass, setSelectedClass] = useState<'10' | '12'>(() => {
+    if (profile.selectedClass === '12' || (profile.selectedExam && profile.selectedExam.includes('12'))) {
+      return '12';
+    }
+    return '10';
+  });
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
   const [boardSearchQuery, setBoardSearchQuery] = useState<string>('');
   const [selectedBoardRegion, setSelectedBoardRegion] = useState<string>('All');
@@ -110,13 +133,65 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
   const [isSavedToast, setIsSavedToast] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDiagnosticsModalOpen, setIsDiagnosticsModalOpen] = useState(false);
-  const [lastSession] = useState<CourseProgressSession | null>(() =>
-    loadLastCourseSession(profile.id)
+  const [showStep2Toast, setShowStep2Toast] = useState(false);
+  const [lastSession, setLastSession] = useState<CourseProgressSession | null>(() =>
+    isLoggedIn && profile.id ? loadLastCourseSession(profile.id) : null
   );
+
+  const prevLoggedInRef = useRef(isLoggedIn);
+  const prevStudentIdRef = useRef(profile.id);
+
+  // Auto-advance to Step 2 upon successful student sign-in or loginTimestamp trigger
+  useEffect(() => {
+    if (loginTimestamp && loginTimestamp > 0 && isLoggedIn) {
+      setWizardStep(2);
+      setShowStep2Toast(true);
+      const timer = setTimeout(() => setShowStep2Toast(false), 4500);
+      return () => clearTimeout(timer);
+    } else if (!prevLoggedInRef.current && isLoggedIn) {
+      setWizardStep(2);
+      setShowStep2Toast(true);
+      const timer = setTimeout(() => setShowStep2Toast(false), 4500);
+      return () => clearTimeout(timer);
+    }
+    prevLoggedInRef.current = isLoggedIn;
+  }, [isLoggedIn, loginTimestamp]);
+
+  // Sync state and ensure zero leftover data on logout or student switch
+  useEffect(() => {
+    if (isLoggedIn && profile.id) {
+      setLastSession(loadLastCourseSession(profile.id));
+      setParentPhoneInput(profile.parentPhone || '');
+      setParentNameInput(profile.parentName || '');
+      setAutoSendToParent(profile.autoSendReportsToParent ?? false);
+      setSelectedGoal(profile.goalCategory || 'school_board');
+      setSelectedBoard(profile.selectedBoard || 'CBSE');
+      setSelectedExam(profile.selectedExam || 'CBSE_10');
+    } else {
+      // Immediate clean state on logout: zero sensitive data in DOM
+      setLastSession(null);
+      setParentPhoneInput('');
+      setParentNameInput('');
+      setShowStep2Toast(false);
+      setIsSavedToast(false);
+      setWizardStep(1);
+    }
+
+    // Only update wizardStep when an actual student account change occurs
+    if (prevStudentIdRef.current !== profile.id) {
+      prevStudentIdRef.current = profile.id;
+      if (profile.isGoalConfirmed) {
+        setWizardStep(4);
+      } else if (isLoggedIn) {
+        setWizardStep(2);
+      } else {
+        setWizardStep(1);
+      }
+    }
+  }, [profile.id, profile.authProvider, profile.parentPhone, profile.parentName, profile.isGoalConfirmed, isLoggedIn]);
 
   const handleContinueToStep2 = () => {
     if (!isLoggedIn) {
-      setShowAuthGateModal(true);
       if (onOpenGoogleAuth) {
         onOpenGoogleAuth();
       }
@@ -127,7 +202,6 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
 
   const handleStepClick = (targetStep: number) => {
     if (targetStep > 1 && !isLoggedIn) {
-      setShowAuthGateModal(true);
       if (onOpenGoogleAuth) {
         onOpenGoogleAuth();
       }
@@ -139,7 +213,6 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
   const handleSelectGoalPathway = (goal: GoalCategory) => {
     setSelectedGoal(goal);
     if (!isLoggedIn) {
-      setShowAuthGateModal(true);
       if (onOpenGoogleAuth) {
         onOpenGoogleAuth();
       }
@@ -174,6 +247,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
       goalCategory: selectedGoal,
       selectedExam: board === 'UP_BOARD' ? (selectedClass === '10' ? 'UP_BOARD_10' : 'UP_BOARD_12') : (selectedClass === '10' ? 'CBSE_10' : 'CBSE_12'),
       selectedBoard: board,
+      selectedClass,
       preferredLanguage: selectedLang,
       autoSendReportsToParent: autoSendToParent,
       parentPhone: parentPhoneInput,
@@ -188,6 +262,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
       goalCategory: selectedGoal,
       selectedExam,
       selectedBoard,
+      selectedClass,
       selectedTechTrack: selectedGoal === 'dev_interview' ? selectedTechTrack : undefined,
       developerLevel: selectedGoal === 'dev_interview' ? selectedDevLevel : undefined,
       preferredLanguage: selectedLang,
@@ -280,10 +355,11 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
         </div>
       )}
 
-      {/* Hero Welcome Banner */}
-      <div className="relative overflow-hidden bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sm:p-10 shadow-2xl">
+      {/* Personalize Your Exam & Career Target Section Container */}
+      <div className="relative overflow-hidden bg-zinc-900 border border-zinc-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-6">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
+            {/* Multi-Step Adaptive Onboarding Wizard Badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Multi-Step Adaptive Onboarding Wizard</span>
@@ -297,7 +373,8 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
               StudyOS AI dynamically calibrates official textbook problem sets, spaced revision intervals, and audio explanations according to your exact educational board and goal.
             </p>
 
-            <div className="pt-2 flex items-center gap-3">
+            {/* Audio Overview Player */}
+            <div className="pt-2 flex items-center gap-2">
               <SpeechSynthesisPlayer
                 textToSpeak={getWizardOverviewText()}
                 language={selectedLang}
@@ -308,26 +385,94 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
             </div>
           </div>
 
-          {/* Wizard Progress Pill Card */}
-          <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80 shrink-0 space-y-3 sm:w-64">
-            <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-zinc-400">Step {wizardStep} of 4</span>
-              <span className="text-amber-400 font-bold">{wizardStep * 25}% Complete</span>
+          {/* Right Column: Step Progress Card + Bottom Inline Controls */}
+          <div className="flex flex-col gap-2 sm:w-72 md:w-80 shrink-0">
+            {/* Step 1 of 4 (25% Complete / 1. Choose Target Pathway) Container */}
+            <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800/80 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-zinc-400">Step {wizardStep} of 4</span>
+                <span className="text-amber-400 font-bold">{wizardStep * 25}% Complete</span>
+              </div>
+
+              <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-amber-500 h-full transition-all duration-300 rounded-full"
+                  style={{ width: `${wizardStep * 25}%` }}
+                />
+              </div>
+
+              <div className="text-[11px] text-zinc-400 leading-snug">
+                {wizardStep === 1 && '1. Choose Target Pathway'}
+                {wizardStep === 2 && '2. Select Board / Exam / Track'}
+                {wizardStep === 3 && '3. Class, Level & Language'}
+                {wizardStep === 4 && '4. Syllabus Verification'}
+              </div>
             </div>
 
-            <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-amber-500 h-full transition-all duration-300 rounded-full"
-                style={{ width: `${wizardStep * 25}%` }}
-              />
-            </div>
+            {/* Formulas, Peer Room, Exam Coach & Parent View - Only visible when student login successfully */}
+            {isLoggedIn && (
+              <>
+                {/* Row 1: Exam Coach & Switch to Parent View */}
+                <div className="flex items-center gap-2">
+                  {/* Exam Coach */}
+                  {onOpenExamCoach && (
+                    <button
+                      type="button"
+                      onClick={onOpenExamCoach}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 transition-all text-xs font-bold shadow-md cursor-pointer whitespace-nowrap"
+                      title="Open AI Exam Coach"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 fill-zinc-950" />
+                      <span>Exam Coach</span>
+                    </button>
+                  )}
 
-            <div className="text-[11px] text-zinc-400 leading-snug">
-              {wizardStep === 1 && '1. Choose Target Pathway'}
-              {wizardStep === 2 && '2. Select Board / Exam / Track'}
-              {wizardStep === 3 && '3. Class, Level & Language'}
-              {wizardStep === 4 && '4. Syllabus Verification'}
-            </div>
+                  {/* Switch to Parent View */}
+                  {onToggleRole && (
+                    <button
+                      type="button"
+                      onClick={onToggleRole}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 hover:text-white transition-all text-xs font-bold shadow-sm cursor-pointer whitespace-nowrap"
+                      title={profile.activeRole === 'parent' ? 'Switch to Student View' : 'Switch to Parent View'}
+                    >
+                      <UserCheck className="w-3.5 h-3.5 text-purple-400" />
+                      <span>
+                        {profile.activeRole === 'parent' ? 'Student View' : 'Parent View'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Row 2: Formulas & Peer Room (Inline, just under Exam Coach and Parent View) */}
+                <div className="flex items-center gap-2">
+                  {/* Formulas */}
+                  {onOpenFormulas && (
+                    <button
+                      type="button"
+                      onClick={onOpenFormulas}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-950/90 border border-zinc-800 text-zinc-300 hover:text-amber-300 hover:border-amber-500/40 hover:bg-zinc-850 transition-all text-xs font-semibold shadow-sm cursor-pointer whitespace-nowrap"
+                      title="Quick Formula Cheat Sheet (Shift + F)"
+                    >
+                      <Calculator className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Formulas</span>
+                    </button>
+                  )}
+
+                  {/* Peer Room */}
+                  {onOpenPeerRoom && (
+                    <button
+                      type="button"
+                      onClick={onOpenPeerRoom}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-950/90 border border-zinc-800 text-zinc-300 hover:text-emerald-300 hover:border-emerald-500/40 hover:bg-zinc-850 transition-all text-xs font-semibold shadow-sm cursor-pointer whitespace-nowrap"
+                      title="10-Minute Peer Study Room"
+                    >
+                      <Users className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Peer Room</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1211,60 +1356,19 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
         onClose={() => setIsDiagnosticsModalOpen(false)}
       />
 
-      {/* Account Sign-In Required Auth Gate Modal */}
-      {showAuthGateModal && !isLoggedIn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-zinc-900 border border-amber-500/50 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                <Lock className="w-4 h-4" />
-                <span>Account Sign-In Required</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAuthGateModal(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              To customize your educational board, access Step 2, and safeguard your continuous learning progress, please sign in to your student account.
+      {/* Auto-Advance to Step 2 Celebration Toast */}
+      {showStep2Toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-zinc-950 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-300 animate-bounce">
+          <div className="w-8 h-8 rounded-xl bg-zinc-950 text-emerald-400 flex items-center justify-center font-bold text-sm">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-zinc-900">
+              Gmail ID Verified Successfully!
             </p>
-
-            <div className="p-3.5 bg-zinc-950 rounded-xl border border-zinc-800 text-xs space-y-1.5 text-zinc-400">
-              <div className="text-zinc-200 font-semibold flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-amber-400" />
-                <span>Protected Student Profile</span>
-              </div>
-              <div>• Continuous progress saved to your account</div>
-              <div>• Automatic parent progress updates via SMS/WhatsApp</div>
-              <div>• Cross-check syllabus and textbook exercise synchronization</div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAuthGateModal(false);
-                  if (onOpenGoogleAuth) {
-                    onOpenGoogleAuth();
-                  }
-                }}
-                className="flex-1 py-3 px-4 rounded-xl bg-amber-500 text-zinc-950 font-bold text-xs flex items-center justify-center gap-2 hover:bg-amber-400 transition-all shadow-md"
-              >
-                <User className="w-4 h-4" />
-                <span>Sign In with Google</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAuthGateModal(false)}
-                className="py-3 px-4 rounded-xl bg-zinc-800 text-zinc-300 font-semibold text-xs hover:bg-zinc-700 transition-all"
-              >
-                Cancel
-              </button>
-            </div>
+            <p className="text-[11px] font-semibold text-zinc-900">
+              Welcome {profile.name || 'Student'}! Advanced directly to Step 2: Choose Your Board & Track.
+            </p>
           </div>
         </div>
       )}

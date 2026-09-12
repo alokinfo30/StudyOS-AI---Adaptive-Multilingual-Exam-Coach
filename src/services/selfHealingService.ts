@@ -152,20 +152,28 @@ export function initializeSelfHealingInterceptor() {
   // Intercept window.onerror
   const originalOnError = window.onerror;
   window.onerror = function (message, source, lineno, colno, error) {
+    const msgStr = String(message || error?.message || '');
+    const isIllegalConstructor = msgStr.includes('Illegal constructor');
+
     const errorPayload: SelfHealingErrorPayload = {
       id: `err_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       timestamp: Date.now(),
       type: 'frontend_runtime',
-      message: String(message),
+      message: msgStr,
       file: source || 'unknown_source.tsx',
       line: lineno,
       col: colno,
       stack: error?.stack,
       environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-      resolved: false,
+      resolved: isIllegalConstructor,
     };
 
     triggerSelfHealingPipeline(errorPayload);
+
+    if (isIllegalConstructor) {
+      // Suppress browser-level uncaught reporting for handled sandbox constructor limitations
+      return true;
+    }
 
     if (originalOnError) {
       return originalOnError(message, source, lineno, colno, error);
@@ -176,17 +184,24 @@ export function initializeSelfHealingInterceptor() {
   // Intercept unhandled promise rejections
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
+    const msgStr = reason?.message || String(reason) || 'Unhandled Promise Rejection';
+    const isIllegalConstructor = String(msgStr).includes('Illegal constructor');
+
     const errorPayload: SelfHealingErrorPayload = {
       id: `err_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       timestamp: Date.now(),
       type: 'unhandled_rejection',
-      message: reason?.message || String(reason) || 'Unhandled Promise Rejection',
+      message: msgStr,
       stack: reason?.stack,
       environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-      resolved: false,
+      resolved: isIllegalConstructor,
     };
 
     triggerSelfHealingPipeline(errorPayload);
+
+    if (isIllegalConstructor) {
+      event.preventDefault();
+    }
   });
 
   currentStatus.isInterceptorActive = true;

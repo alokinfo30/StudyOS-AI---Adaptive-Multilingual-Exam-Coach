@@ -6,7 +6,7 @@ function getAudioContext(): AudioContext | null {
   try {
     if (!audioCtx) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
+      if (AudioContextClass && typeof AudioContextClass === 'function') {
         audioCtx = new AudioContextClass();
       }
     }
@@ -89,3 +89,57 @@ export function playMasteryPopSound(isHighMastery = false): void {
     console.warn('Error playing audio pop', err);
   }
 }
+
+/**
+ * Synthesizes exam timer acoustic notifications (gentle chime for 5m, double beep for 1m, finish bell).
+ */
+export function playExamTimerAlert(type: 'warning_5m' | 'warning_1m' | 'time_up'): void {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    if (type === 'warning_5m') {
+      // Soft single amber bell (A4 440Hz -> E5 659Hz)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(659, now + 0.25);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.65);
+    } else if (type === 'warning_1m') {
+      // Urgent double high-pulse (880Hz)
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+      gain.gain.setValueAtTime(0.18, now + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.5);
+    } else {
+      // Time up: gentle triple chime
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.setValueAtTime(659.25, now + 0.2); // E5
+      osc.frequency.setValueAtTime(783.99, now + 0.4); // G5
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.95);
+    }
+  } catch (e) {
+    console.warn('Unable to play exam timer alert chime', e);
+  }
+}
+

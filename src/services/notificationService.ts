@@ -10,28 +10,59 @@ export interface NotificationStatus {
 }
 
 export function isNotificationSupported(): boolean {
-  return typeof window !== 'undefined' && 'Notification' in window;
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  try {
+    if (typeof window.Notification !== 'function') return false;
+    const perm = window.Notification.permission;
+    if (typeof perm === 'undefined') return false;
+    
+    // Defensive verification: ensure constructor is callable without "TypeError: Illegal constructor"
+    try {
+      const testInstance = new (window as any).Notification('');
+      if (testInstance && typeof testInstance.close === 'function') {
+        testInstance.close();
+      }
+    } catch {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function getNotificationPermission(): NotificationPermission | 'unsupported' {
   if (!isNotificationSupported()) return 'unsupported';
-  return Notification.permission;
+  try {
+    return window.Notification.permission;
+  } catch {
+    return 'unsupported';
+  }
 }
 
 export function isReviewNotificationEnabled(): boolean {
   if (typeof window === 'undefined') return false;
-  return localStorage.getItem(NOTIFICATION_PREF_KEY) === 'true';
+  try {
+    return localStorage.getItem(NOTIFICATION_PREF_KEY) === 'true';
+  } catch {
+    return false;
+  }
 }
 
 export function setReviewNotificationEnabled(enabled: boolean): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(NOTIFICATION_PREF_KEY, enabled ? 'true' : 'false');
+  try {
+    localStorage.setItem(NOTIFICATION_PREF_KEY, enabled ? 'true' : 'false');
+  } catch {
+    // ignore
+  }
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermission | 'unsupported'> {
   if (!isNotificationSupported()) return 'unsupported';
   try {
-    const permission = await Notification.requestPermission();
+    if (typeof window.Notification?.requestPermission !== 'function') return 'unsupported';
+    const permission = await window.Notification.requestPermission();
     if (permission === 'granted') {
       setReviewNotificationEnabled(true);
     } else {
@@ -57,13 +88,22 @@ export function checkAndNotifySpacedRepetitionDue(
     return { notified: false, count: 0, items: [] };
   }
 
-  if (Notification.permission !== 'granted') {
+  try {
+    if (window.Notification.permission !== 'granted') {
+      return { notified: false, count: 0, items: [] };
+    }
+  } catch {
     return { notified: false, count: 0, items: [] };
   }
 
   // Throttle notifications unless forced (at most once every 3 hours)
   const now = Date.now();
-  const lastNotified = parseInt(localStorage.getItem(LAST_NOTIFIED_KEY) || '0', 10);
+  let lastNotified = 0;
+  try {
+    lastNotified = parseInt(localStorage.getItem(LAST_NOTIFIED_KEY) || '0', 10);
+  } catch {
+    lastNotified = 0;
+  }
   if (!force && now - lastNotified < 3 * 60 * 60 * 1000) {
     return { notified: false, count: 0, items: [] };
   }
@@ -86,7 +126,12 @@ export function checkAndNotifySpacedRepetitionDue(
       : `You have ${dueItems.length} concepts due for review today (including ${conceptDisplay}). Keep your retention curve above 90%!`;
 
   try {
-    const notification = new Notification(title, {
+    const NotificationClass = window.Notification;
+    if (typeof NotificationClass !== 'function') {
+      return { notified: false, count: dueItems.length, items: dueItems };
+    }
+
+    const notification = new NotificationClass(title, {
       body,
       icon: '/vite.svg',
       tag: 'spaced-repetition-reminder',
@@ -94,14 +139,22 @@ export function checkAndNotifySpacedRepetitionDue(
     });
 
     notification.onclick = () => {
-      window.focus();
-      notification.close();
+      try {
+        window.focus();
+        notification.close();
+      } catch {
+        // ignore
+      }
     };
 
-    localStorage.setItem(LAST_NOTIFIED_KEY, now.toString());
+    try {
+      localStorage.setItem(LAST_NOTIFIED_KEY, now.toString());
+    } catch {
+      // ignore
+    }
     return { notified: true, count: dueItems.length, items: dueItems };
   } catch (e) {
-    console.warn('Could not dispatch desktop notification', e);
+    console.warn('Could not dispatch desktop notification safely', e);
     return { notified: false, count: dueItems.length, items: dueItems };
   }
 }
@@ -110,23 +163,36 @@ export function checkAndNotifySpacedRepetitionDue(
  * Triggers an immediate test notification to verify browser permissions and audio/visual alerts.
  */
 export function sendTestReviewNotification(chapterName = "Ohm's Law & Circuit Heating"): boolean {
-  if (!isNotificationSupported() || Notification.permission !== 'granted') {
+  if (!isNotificationSupported()) {
     return false;
   }
 
   try {
-    const n = new Notification(`🎯 Spaced Repetition Due: ${chapterName}`, {
+    if (window.Notification.permission !== 'granted') {
+      return false;
+    }
+
+    const NotificationClass = window.Notification;
+    if (typeof NotificationClass !== 'function') {
+      return false;
+    }
+
+    const n = new NotificationClass(`🎯 Spaced Repetition Due: ${chapterName}`, {
       body: `Ebbinghaus Retention Alert: It is time to review this concept to prevent memory decay. Tap to begin your interactive flashcard recall!`,
       icon: '/vite.svg',
     });
 
     n.onclick = () => {
-      window.focus();
-      n.close();
+      try {
+        window.focus();
+        n.close();
+      } catch {
+        // ignore
+      }
     };
     return true;
   } catch (err) {
-    console.warn('Test notification failed', err);
+    console.warn('Test notification failed safely', err);
     return false;
   }
 }

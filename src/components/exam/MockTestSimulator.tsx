@@ -23,6 +23,7 @@ import { CURRICULUM_QUESTIONS } from '../../data/curriculum';
 import { getLocalizedText } from '../../data/languages';
 import { recordQuestionAttempt, loadStudentDNA, saveStudentDNA } from '../../services/storageService';
 import { playMasteryPopSound } from '../../utils/audioEffects';
+import { ExamCountdownTimerWidget } from '../common/ExamCountdownTimerWidget';
 
 interface MockTestSimulatorProps {
   language: LanguageCode;
@@ -497,6 +498,14 @@ export const MockTestSimulator: React.FC<MockTestSimulatorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Persistent, Unobtrusive Exam Countdown & Pacing Timer Widget */}
+      <ExamCountdownTimerWidget
+        targetExam={profile.selectedExam}
+        currentQuestionIndex={currentIndex}
+        onTimeUp={handleSubmitExam}
+        onSyncTimeLeft={(sec) => setTimeLeftSec(sec)}
+      />
     </div>
   );
 };

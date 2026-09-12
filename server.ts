@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { sendVerificationEmail, verifyEmailCode } from './src/server/emailAuth';
 
 dotenv.config();
 
@@ -13,6 +14,37 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+
+// Real Email & Identity Verification Routes
+app.post('/api/auth/send-verification-code', async (req, res) => {
+  try {
+    const { email, studentName } = req.body;
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'Valid email address is required.' });
+    }
+
+    const result = await sendVerificationEmail(email, studentName);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Send verification code error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to dispatch code' });
+  }
+});
+
+app.post('/api/auth/verify-code', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ success: false, verified: false, error: 'Email and code are required.' });
+    }
+
+    const result = verifyEmailCode(email, code);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Verify code error:', error);
+    res.status(500).json({ success: false, verified: false, error: error.message || 'Verification failed' });
+  }
+});
 
 // Initialize Google Gemini SDK with required User-Agent
 let ai: GoogleGenAI | null = null;
