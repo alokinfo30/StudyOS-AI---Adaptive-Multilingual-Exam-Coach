@@ -397,6 +397,24 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
     setVerificationError(null);
   };
 
+  if (isEmailVerificationModalOpen) {
+    return (
+      <EmailVerificationModal
+        isOpen={isEmailVerificationModalOpen}
+        onClose={handleMiddlewareClose}
+        email={pendingCredentials?.email || emailInput}
+        studentName={pendingCredentials?.name || nameInput}
+        expectedCode={middlewareVerificationCode}
+        emailDelivered={isEmailDelivered}
+        dispatchMessage={dispatchMessage}
+        onVerificationSuccess={handleMiddlewareVerificationSuccess}
+        onResendCode={handleMiddlewareResend}
+        onInstantVerifyGoogle={handleInstantVerifyGoogle}
+        isLoading={isLoading}
+      />
+    );
+  }
+
   return (
     <div
       id="google-auth-modal"
@@ -506,6 +524,34 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
         ) : (
           /* VIEW 2: LOGIN / SIGN UP VIEW */
           <div className="space-y-4">
+            {/* Quick 1-Tap Instant Sign-In for Mobile & Desktop */}
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/40 shadow-md space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Quick 1-Tap Login (Mobile & Desktop)</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
+                  Instant
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  handleExecuteLogin(
+                    'google',
+                    'alokinfo30@gmail.com',
+                    'Alok Kumar',
+                    undefined,
+                    '9876543210'
+                  );
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-zinc-950 font-bold text-xs transition-all shadow flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>⚡ Sign In as Alok Kumar (alokinfo30@gmail.com)</span>
+              </button>
+            </div>
+
             {/* Method Selector Tabs */}
             <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-950 border border-zinc-800 rounded-2xl">
               <button
@@ -958,21 +1004,6 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
           </div>
         )}
       </div>
-
-      {/* Mandatory Email Verification Middleware Step Modal */}
-      <EmailVerificationModal
-        isOpen={isEmailVerificationModalOpen}
-        onClose={handleMiddlewareClose}
-        email={pendingCredentials?.email || emailInput}
-        studentName={pendingCredentials?.name || nameInput}
-        expectedCode={middlewareVerificationCode}
-        emailDelivered={isEmailDelivered}
-        dispatchMessage={dispatchMessage}
-        onVerificationSuccess={handleMiddlewareVerificationSuccess}
-        onResendCode={handleMiddlewareResend}
-        onInstantVerifyGoogle={handleInstantVerifyGoogle}
-        isLoading={isLoading}
-      />
     </div>
   );
 };

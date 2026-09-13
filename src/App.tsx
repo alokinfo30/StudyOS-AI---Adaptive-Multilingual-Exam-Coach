@@ -110,6 +110,24 @@ export default function App() {
     applyAccentColorToDocument(profile.accentColor || 'amber');
   }, [profile.accentColor]);
 
+  // Cross-device profile synchronization: load synced profile from backend
+  useEffect(() => {
+    if (profile.email && profile.authProvider !== 'guest') {
+      fetch(`/api/auth/get-profile?email=${encodeURIComponent(profile.email)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.profile) {
+            setProfile((prev) => {
+              const merged: UserProfile = { ...prev, ...data.profile };
+              saveUserProfile(merged, activeStudentId);
+              return merged;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [activeStudentId, profile.email, profile.authProvider]);
+
   // Global keyboard shortcut for Quick Formula Cheat-Sheet (Shift + F) - Only when logged in & goal confirmed
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -255,6 +273,15 @@ export default function App() {
     };
     setProfile(updated);
     saveUserProfile(updated, activeStudentId);
+
+    // Sync to backend for cross-device persistence
+    if (updated.email && updated.authProvider !== 'guest') {
+      fetch('/api/auth/sync-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: updated.email, profile: updated }),
+      }).catch(() => {});
+    }
   };
 
   const handleUpdateMasteries = (updatedMasteries: Record<string, ConceptMastery>) => {

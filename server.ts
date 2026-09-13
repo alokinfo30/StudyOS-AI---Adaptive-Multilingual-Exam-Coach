@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -43,6 +44,54 @@ app.post('/api/auth/verify-code', async (req, res) => {
   } catch (error: any) {
     console.error('Verify code error:', error);
     res.status(500).json({ success: false, verified: false, error: error.message || 'Verification failed' });
+  }
+});
+
+// Profile Cross-Device Persistence & Sync
+const PROFILES_STORE_FILE = path.join('/tmp', 'studyos_profiles.json');
+
+app.post('/api/auth/sync-profile', (req, res) => {
+  try {
+    const { email, profile, account } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email required for sync' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    let store: Record<string, any> = {};
+    if (fs.existsSync(PROFILES_STORE_FILE)) {
+      try {
+        store = JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8'));
+      } catch {}
+    }
+    store[cleanEmail] = {
+      profile,
+      account,
+      updatedAt: Date.now(),
+    };
+    fs.writeFileSync(PROFILES_STORE_FILE, JSON.stringify(store), 'utf-8');
+    res.json({ success: true, message: 'Profile synced successfully across devices' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/auth/get-profile', (req, res) => {
+  try {
+    const email = (req.query.email as string || '').trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email required' });
+    }
+    if (fs.existsSync(PROFILES_STORE_FILE)) {
+      try {
+        const store = JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8'));
+        if (store[email]) {
+          return res.json({ success: true, data: store[email] });
+        }
+      } catch {}
+    }
+    res.json({ success: false, message: 'No remote profile found' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

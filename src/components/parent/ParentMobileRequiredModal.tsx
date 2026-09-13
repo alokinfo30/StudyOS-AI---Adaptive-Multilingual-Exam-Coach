@@ -237,6 +237,17 @@ export const ParentMobileRequiredModal: React.FC<ParentMobileRequiredModalProps>
 
             <button
               type="button"
+              onClick={() => {
+                onConfirm('+919876543210', parentName.trim() || 'Guardian', parentLang);
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-amber-500/30"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Quick 1-Tap: Use Verified Demo Mobile (+91 98765 43210)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onClose}
               className="w-full py-2 text-xs text-zinc-500 hover:text-zinc-300 text-center transition-colors"
             >

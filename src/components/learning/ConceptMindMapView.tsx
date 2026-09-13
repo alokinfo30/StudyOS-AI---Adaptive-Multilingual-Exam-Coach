@@ -14,6 +14,10 @@ import {
   Award,
   ChevronRight,
   Eye,
+  ArrowRight,
+  Compass,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
 import { ConceptMastery, MindMapNode } from '../../types';
 
@@ -44,6 +48,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
           category: 'core_concept',
           masteryScore: 92,
           difficulty: 'medium',
+          prerequisites: ['sub_physics'],
           description: 'Electric charge flow, potential difference and Ohm’s law',
           children: [
             {
@@ -53,6 +58,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 96,
               difficulty: 'easy',
               formula: 'V = I * R',
+              prerequisites: ['ch_electricity'],
               description: 'Current is directly proportional to potential difference across conductor ends.',
             },
             {
@@ -62,6 +68,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 88,
               difficulty: 'medium',
               formula: 'R = rho * (L / A)',
+              prerequisites: ['concept_ohms_law', 'ch_electricity'],
               description: 'Material-specific resistance factor independent of geometry.',
             },
             {
@@ -71,6 +78,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 84,
               difficulty: 'medium',
               formula: 'H = I^2 * R * t',
+              prerequisites: ['concept_ohms_law', 'concept_resistivity'],
               description: 'Thermal energy generation across resistive components.',
             },
           ],
@@ -81,6 +89,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
           category: 'core_concept',
           masteryScore: 78,
           difficulty: 'hard',
+          prerequisites: ['sub_physics'],
           description: 'Reflection, Refraction, Mirror and Lens formulas',
           children: [
             {
@@ -90,6 +99,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 82,
               difficulty: 'medium',
               formula: 'n1 * sin(θ1) = n2 * sin(θ2)',
+              prerequisites: ['ch_light'],
               description: 'Refraction across boundary between two optical media.',
             },
             {
@@ -99,6 +109,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 74,
               difficulty: 'hard',
               formula: '1/f = 1/v + 1/u',
+              prerequisites: ['ch_light', 'concept_snell'],
               description: 'Spherical concave & convex mirror image coordinates.',
             },
             {
@@ -108,6 +119,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 89,
               difficulty: 'easy',
               formula: 'P = 1 / f (in meters)',
+              prerequisites: ['concept_mirror_formula', 'ch_light'],
               description: 'Convergence or divergence capacity in Dioptres.',
             },
           ],
@@ -127,6 +139,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
           category: 'core_concept',
           masteryScore: 86,
           difficulty: 'medium',
+          prerequisites: ['sub_math'],
           description: 'Second-degree polynomials and roots',
           children: [
             {
@@ -136,6 +149,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 95,
               difficulty: 'easy',
               formula: 'D = b^2 - 4ac',
+              prerequisites: ['ch_quadratics'],
               description: 'Determines real, equal, or imaginary nature of roots.',
             },
             {
@@ -145,6 +159,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 92,
               difficulty: 'medium',
               formula: 'x = (-b ± sqrt(D)) / (2a)',
+              prerequisites: ['concept_discriminant', 'ch_quadratics'],
               description: 'Universal root solver for ax² + bx + c = 0.',
             },
           ],
@@ -155,6 +170,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
           category: 'core_concept',
           masteryScore: 76,
           difficulty: 'hard',
+          prerequisites: ['sub_math'],
           description: 'Pythagorean trigonometric ratios and identities',
           children: [
             {
@@ -164,6 +180,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 88,
               difficulty: 'easy',
               formula: 'sin^2(θ) + cos^2(θ) = 1',
+              prerequisites: ['ch_trig'],
               description: 'Fundamental trigonometric Pythagorean identity.',
             },
             {
@@ -173,6 +190,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 72,
               difficulty: 'hard',
               formula: '1 + tan^2(θ) = sec^2(θ)',
+              prerequisites: ['concept_pythagorean_id', 'ch_trig'],
               description: 'Secant and tangent identity.',
             },
           ],
@@ -192,6 +210,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
           category: 'core_concept',
           masteryScore: 87,
           difficulty: 'easy',
+          prerequisites: ['sub_chemistry'],
           description: 'pH scale, indicator reactions and neutralizations',
           children: [
             {
@@ -201,6 +220,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 91,
               difficulty: 'medium',
               formula: 'pH = -log10[H+]',
+              prerequisites: ['ch_acids'],
               description: 'Logarithmic hydrogen ion concentration scale from 0 to 14.',
             },
             {
@@ -210,6 +230,7 @@ const NCERT_CONCEPT_TREE: MindMapNode = {
               masteryScore: 94,
               difficulty: 'easy',
               formula: 'HCl + NaOH -> NaCl + H2O',
+              prerequisites: ['concept_ph_formula', 'ch_acids'],
               description: 'Proton exchange leading to salt and water synthesis.',
             },
           ],
@@ -245,6 +266,53 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
   const [selectedNode, setSelectedNode] = useState<MindMapNode | null>(null);
   const [filterCategory, setFilterCategory] = useState<'all' | 'physics' | 'math' | 'chemistry'>('all');
   const [zoomTransform, setZoomTransform] = useState<d3.ZoomTransform | null>(null);
+  const [hoveredNodeInfo, setHoveredNodeInfo] = useState<{
+    node: MindMapNode;
+    prerequisites: MindMapNode[];
+    dependents: MindMapNode[];
+  } | null>(null);
+
+  // Helper to jump to any concept by ID
+  const handleSelectConceptById = (conceptId: string) => {
+    const findInNode = (curr: MindMapNode): MindMapNode | null => {
+      if (curr.id === conceptId) return curr;
+      if (curr.children) {
+        for (const ch of curr.children) {
+          const res = findInNode(ch);
+          if (res) return res;
+        }
+      }
+      return null;
+    };
+    const node = findInNode(NCERT_CONCEPT_TREE);
+    if (node) {
+      setSelectedNode(node);
+      if (onSelectConcept) {
+        onSelectConcept(node.id, node.name);
+      }
+    }
+  };
+
+  // Filter tree dataset based on selected subject filter
+  const currentTreeData: MindMapNode = React.useMemo(() => {
+    if (filterCategory === 'all') return NCERT_CONCEPT_TREE;
+    const matchId =
+      filterCategory === 'physics'
+        ? 'sub_physics'
+        : filterCategory === 'math'
+        ? 'sub_math'
+        : 'sub_chemistry';
+    const found = NCERT_CONCEPT_TREE.children?.find((c) => c.id === matchId);
+    if (!found) return NCERT_CONCEPT_TREE;
+    return {
+      id: 'root_filtered',
+      name: `${found.name} Hierarchy`,
+      category: 'subject',
+      masteryScore: found.masteryScore,
+      description: found.description,
+      children: found.children,
+    };
+  }, [filterCategory]);
 
   // Render D3 Tree Graph
   useEffect(() => {
@@ -272,7 +340,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
     svg.call(zoom);
 
     // Initial Tree Layout
-    const treeData = d3.hierarchy<MindMapNode>(NCERT_CONCEPT_TREE);
+    const treeData = d3.hierarchy<MindMapNode>(currentTreeData);
     const treeLayout = d3.tree<MindMapNode>().size([height - 80, width - 260]);
     treeLayout(treeData);
 
@@ -280,7 +348,8 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
     svg.call(zoom.transform, d3.zoomIdentity.translate(80, 40).scale(0.85));
 
     // Links (Curved cubic Bezier paths)
-    g.selectAll('.mindmap-link')
+    const linkElements = g
+      .selectAll('.mindmap-link')
       .data(treeData.links())
       .enter()
       .append('path')
@@ -297,6 +366,60 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
       .attr('stroke-width', 1.5)
       .attr('stroke-dasharray', (d) => (d.target.data.category === 'formula' ? '4 2' : 'none'))
       .attr('opacity', 0.85);
+
+    // Fast lookup of hierarchy nodes
+    const hierarchyMap = new Map<string, d3.HierarchyNode<MindMapNode>>();
+    treeData.descendants().forEach((d) => {
+      hierarchyMap.set(d.data.id, d);
+    });
+
+    // Helper: Collect all prerequisite IDs (both tree ancestors and explicit prerequisite relations)
+    const getPrerequisiteIds = (targetNode: d3.HierarchyNode<MindMapNode>): Set<string> => {
+      const prereqIds = new Set<string>();
+
+      // 1. Hierarchical ancestors (e.g. Current Electricity -> Physics)
+      targetNode.ancestors().forEach((a) => {
+        if (a !== targetNode && a.data.id !== 'root_science' && a.data.id !== 'root_filtered') {
+          prereqIds.add(a.data.id);
+        }
+      });
+
+      // 2. Explicit prerequisite nodes recursively
+      const addExplicitPrereqs = (pList?: string[]) => {
+        if (!pList) return;
+        pList.forEach((pId) => {
+          if (!prereqIds.has(pId)) {
+            prereqIds.add(pId);
+            const pNode = hierarchyMap.get(pId);
+            if (pNode && pNode.data.prerequisites) {
+              addExplicitPrereqs(pNode.data.prerequisites);
+            }
+          }
+        });
+      };
+      addExplicitPrereqs(targetNode.data.prerequisites);
+
+      return prereqIds;
+    };
+
+    // Helper: Collect all dependent IDs (descendants + concepts that require this concept)
+    const getDependentIds = (targetNode: d3.HierarchyNode<MindMapNode>): Set<string> => {
+      const depIds = new Set<string>();
+
+      // Descendants in hierarchy
+      targetNode.descendants().forEach((desc) => {
+        if (desc !== targetNode) depIds.add(desc.data.id);
+      });
+
+      // Any node in graph citing this targetNode as a prerequisite
+      treeData.descendants().forEach((n) => {
+        if (n.data.prerequisites && n.data.prerequisites.includes(targetNode.data.id)) {
+          depIds.add(n.data.id);
+        }
+      });
+
+      return depIds;
+    };
 
     // Node Groups
     const nodes = g
@@ -316,6 +439,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
     // Node Circles / Shields with live mastery color
     nodes
       .append('circle')
+      .attr('class', 'node-core-circle')
       .attr('r', (d) => {
         if (d.depth === 0) return 18;
         if (d.depth === 1) return 14;
@@ -336,6 +460,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
     // Node Labels
     nodes
       .append('text')
+      .attr('class', 'node-label')
       .attr('dy', (d) => (d.children ? -12 : -4))
       .attr('x', (d) => (d.children ? 0 : 12))
       .attr('text-anchor', (d) => (d.children ? 'middle' : 'start'))
@@ -409,7 +534,166 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
       .attr('stroke-width', 1.5)
       .attr('stroke-dasharray', '3 3')
       .attr('class', 'animate-spin');
-  }, [filterCategory, activeChapterId, masteries]);
+
+    // -------------------------------------------------------------
+    // Pedagogical Prerequisite Flow Hover Interaction
+    // -------------------------------------------------------------
+    nodes
+      .on('mouseenter', (_, d) => {
+        const prereqIds = getPrerequisiteIds(d);
+        const depIds = getDependentIds(d);
+
+        // Update React HUD state
+        const prereqNodes = Array.from(prereqIds)
+          .map((id) => hierarchyMap.get(id)?.data)
+          .filter(Boolean) as MindMapNode[];
+        const depNodes = Array.from(depIds)
+          .map((id) => hierarchyMap.get(id)?.data)
+          .filter(Boolean) as MindMapNode[];
+
+        setHoveredNodeInfo({
+          node: d.data,
+          prerequisites: prereqNodes,
+          dependents: depNodes,
+        });
+
+        // 1. Highlight links:
+        // Prerequisite links glow in electric sky cyan with animated dash
+        linkElements
+          .transition()
+          .duration(150)
+          .attr('stroke', (l: any) => {
+            const isTargetHovered = l.target.data.id === d.data.id;
+            const isTargetPrereq = prereqIds.has(l.target.data.id);
+            const isSourcePrereq = prereqIds.has(l.source.data.id);
+
+            if (isTargetHovered || (isTargetPrereq && isSourcePrereq)) {
+              return '#38bdf8'; // Electric Cyan for prerequisite flow
+            }
+            if (depIds.has(l.target.data.id) && (l.source.data.id === d.data.id || depIds.has(l.source.data.id))) {
+              return '#34d399'; // Mint Emerald for unlocked downstream flow
+            }
+            return '#27272a'; // Dimmed for focus
+          })
+          .attr('stroke-width', (l: any) => {
+            const isTargetHovered = l.target.data.id === d.data.id;
+            const isTargetPrereq = prereqIds.has(l.target.data.id);
+            const isSourcePrereq = prereqIds.has(l.source.data.id);
+
+            if (isTargetHovered || (isTargetPrereq && isSourcePrereq)) {
+              return 3.5;
+            }
+            if (depIds.has(l.target.data.id) && l.source.data.id === d.data.id) {
+              return 2.5;
+            }
+            return 1;
+          })
+          .attr('stroke-dasharray', (l: any) => {
+            const isTargetHovered = l.target.data.id === d.data.id;
+            const isTargetPrereq = prereqIds.has(l.target.data.id);
+            const isSourcePrereq = prereqIds.has(l.source.data.id);
+            if (isTargetHovered || (isTargetPrereq && isSourcePrereq)) {
+              return '6 3'; // Prerequisite directional flow dash
+            }
+            return l.target.data.category === 'formula' ? '4 2' : 'none';
+          })
+          .attr('opacity', (l: any) => {
+            const isTargetHovered = l.target.data.id === d.data.id;
+            const isTargetPrereq = prereqIds.has(l.target.data.id);
+            const isSourcePrereq = prereqIds.has(l.source.data.id);
+            const isDep = depIds.has(l.target.data.id);
+            if (isTargetHovered || (isTargetPrereq && isSourcePrereq) || isDep) {
+              return 1;
+            }
+            return 0.12; // Dim non-connected paths for pedagogical isolation
+          });
+
+        // 2. Highlight nodes:
+        nodes
+          .transition()
+          .duration(150)
+          .attr('opacity', (n: any) => {
+            if (n.data.id === d.data.id || prereqIds.has(n.data.id) || depIds.has(n.data.id)) {
+              return 1;
+            }
+            return 0.18; // Dim non-involved nodes
+          });
+
+        // Highlight node circle borders:
+        nodes
+          .selectAll('circle.node-core-circle')
+          .transition()
+          .duration(150)
+          .attr('r', (n: any) => {
+            const baseR = n.depth === 0 ? 18 : n.depth === 1 ? 14 : n.depth === 2 ? 10 : 7;
+            if (n.data.id === d.data.id) return baseR + 4;
+            if (prereqIds.has(n.data.id)) return baseR + 3;
+            return baseR;
+          })
+          .attr('stroke', (n: any) => {
+            if (n.data.id === d.data.id) return '#f59e0b'; // Amber Gold for hovered concept
+            if (prereqIds.has(n.data.id)) return '#38bdf8'; // Cyan border for prerequisite concepts
+            if (depIds.has(n.data.id)) return '#10b981'; // Emerald for unlocked forward concepts
+            return '#18181b';
+          })
+          .attr('stroke-width', (n: any) => {
+            if (n.data.id === d.data.id) return 4;
+            if (prereqIds.has(n.data.id)) return 3.5;
+            return 2.5;
+          });
+
+        // Highlight node labels:
+        nodes
+          .selectAll('text.node-label')
+          .transition()
+          .duration(150)
+          .attr('fill', (n: any) => {
+            if (n.data.id === d.data.id) return '#fbbf24'; // Gold
+            if (prereqIds.has(n.data.id)) return '#38bdf8'; // Cyan
+            if (depIds.has(n.data.id)) return '#34d399'; // Mint
+            return n.depth <= 1 ? '#71717a' : '#52525b';
+          })
+          .attr('font-weight', (n: any) => {
+            if (n.data.id === d.data.id || prereqIds.has(n.data.id)) return 'bold';
+            return n.depth <= 1 ? 'bold' : 'normal';
+          });
+      })
+      .on('mouseleave', () => {
+        setHoveredNodeInfo(null);
+
+        // Restore links
+        linkElements
+          .transition()
+          .duration(200)
+          .attr('stroke', '#3f3f46')
+          .attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', (l: any) => (l.target.data.category === 'formula' ? '4 2' : 'none'))
+          .attr('opacity', 0.85);
+
+        // Restore nodes opacity
+        nodes
+          .transition()
+          .duration(200)
+          .attr('opacity', 1);
+
+        // Restore node circles
+        nodes
+          .selectAll('circle.node-core-circle')
+          .transition()
+          .duration(200)
+          .attr('r', (n: any) => (n.depth === 0 ? 18 : n.depth === 1 ? 14 : n.depth === 2 ? 10 : 7))
+          .attr('stroke', '#18181b')
+          .attr('stroke-width', 2.5);
+
+        // Restore node labels
+        nodes
+          .selectAll('text.node-label')
+          .transition()
+          .duration(200)
+          .attr('fill', (n: any) => (n.depth <= 1 ? '#f4f4f5' : '#d4d4d8'))
+          .attr('font-weight', (n: any) => (n.depth <= 1 ? 'bold' : 'normal'));
+      });
+  }, [filterCategory, activeChapterId, masteries, currentTreeData]);
 
   const handleZoomIn = () => {
     if (!svgRef.current) return;
@@ -441,68 +725,124 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
           <div>
             <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
               <span>NCERT Concept Mastery Mind Map</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                D3 Graph Engine
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                <Compass className="w-3 h-3" /> Pedagogical Flow
               </span>
             </h3>
             <p className="text-xs text-zinc-400">
-              Interactive visual hierarchy connecting core concepts, formulas, and prerequisites
+              Interactive visual hierarchy connecting core concepts, formulas, and prerequisite learning paths
             </p>
           </div>
         </div>
 
-        {/* Graph Controls */}
-        <div className="flex items-center gap-1.5 self-end sm:self-auto">
-          <button
-            type="button"
-            onClick={handleZoomIn}
-            className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-amber-400 hover:border-amber-500/40 text-xs transition-all"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleZoomOut}
-            className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-amber-400 hover:border-amber-500/40 text-xs transition-all"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={handleResetZoom}
-            className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-amber-400 hover:border-amber-500/40 text-xs transition-all flex items-center gap-1"
-            title="Reset View"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-            <span className="text-[10px] font-mono hidden sm:inline">Reset</span>
-          </button>
+        {/* Subject Filter Pills and Graph Controls */}
+        <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
+          {/* Filter Pills */}
+          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setFilterCategory('all')}
+              className={`px-2.5 py-1 rounded-md transition-all text-[11px] ${
+                filterCategory === 'all'
+                  ? 'bg-amber-500 text-zinc-950 font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterCategory('physics')}
+              className={`px-2.5 py-1 rounded-md transition-all text-[11px] ${
+                filterCategory === 'physics'
+                  ? 'bg-amber-500 text-zinc-950 font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Physics
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterCategory('math')}
+              className={`px-2.5 py-1 rounded-md transition-all text-[11px] ${
+                filterCategory === 'math'
+                  ? 'bg-amber-500 text-zinc-950 font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Math
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterCategory('chemistry')}
+              className={`px-2.5 py-1 rounded-md transition-all text-[11px] ${
+                filterCategory === 'chemistry'
+                  ? 'bg-amber-500 text-zinc-950 font-bold shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Chemistry
+            </button>
+          </div>
+
+          {/* Graph Zoom Controls */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-amber-400 hover:border-amber-500/40 text-xs transition-all"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-amber-400 hover:border-amber-500/40 text-xs transition-all"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleResetZoom}
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-amber-400 hover:border-amber-500/40 text-xs transition-all flex items-center gap-1"
+              title="Reset View"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-mono hidden sm:inline">Reset</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mastery Color Legend */}
-      <div className="px-4 py-2 bg-zinc-900/40 border-b border-zinc-800 flex items-center justify-between text-[11px] font-mono text-zinc-400 flex-wrap gap-2">
-        <span className="flex items-center gap-1.5">
+      {/* Mastery Color Legend & Pedagogical Flow Tip */}
+      <div className="px-4 py-2 bg-zinc-900/50 border-b border-zinc-800 flex items-center justify-between text-[11px] font-mono text-zinc-400 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
           <span className="text-zinc-500">Mastery Heatmap:</span>
-        </span>
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span>Mastered (90%+)</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <span>Proficient (80–89%)</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span>Learning (70–79%)</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-            <span>Review Needed</span>
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>90%+ Mastered</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span>80–89% Proficient</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              <span>70–79% Learning</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              <span>Review</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 text-[10px] font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+          <span>Hover on any concept node to highlight connected prerequisite paths</span>
         </div>
       </div>
 
@@ -515,9 +855,105 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
           style={{ minHeight: '480px' }}
         >
           <svg ref={svgRef} className="w-full h-[520px]" />
-          
+
+          {/* Floating Pedagogical Prerequisite Flow HUD */}
+          {hoveredNodeInfo && (
+            <div className="absolute top-3 left-3 right-3 z-10 p-3 bg-zinc-950/95 border border-cyan-500/50 rounded-xl shadow-2xl backdrop-blur-md animate-fadeIn space-y-2 pointer-events-auto">
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-sm shadow-cyan-400" />
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-cyan-400 font-bold">
+                    Pedagogical Prerequisite Flow
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+                    Mastery: {getNodeMasteryScore(hoveredNodeInfo.node, masteries)}%
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 uppercase font-semibold">
+                    {hoveredNodeInfo.node.category.replace('_', ' ')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Prerequisite Sequence Breadcrumbs */}
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                {/* Prerequisites list */}
+                {hoveredNodeInfo.prerequisites.length > 0 ? (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-mono text-cyan-400 font-bold">PREREQUISITES:</span>
+                    {hoveredNodeInfo.prerequisites.map((p) => {
+                      const pScore = getNodeMasteryScore(p, masteries);
+                      const isMastered = pScore >= 80;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSelectConceptById(p.id)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-950/70 hover:bg-cyan-900/80 border border-cyan-500/50 text-cyan-200 text-[11px] font-medium transition-all group shadow-sm"
+                          title="Click to view prerequisite details"
+                        >
+                          {isMastered ? (
+                            <Check className="w-3 h-3 text-emerald-400" />
+                          ) : (
+                            <AlertCircle className="w-3 h-3 text-amber-400" />
+                          )}
+                          <span className="group-hover:underline">{p.name}</span>
+                          <span
+                            className={`text-[9px] font-mono px-1 rounded ${
+                              isMastered ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                            }`}
+                          >
+                            {pScore}%
+                          </span>
+                        </button>
+                      );
+                    })}
+                    <ArrowRight className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  </div>
+                ) : (
+                  <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-cyan-400" />
+                    <span>Root Curriculum Foundation ➔</span>
+                  </span>
+                )}
+
+                {/* Hovered Target Concept */}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/70 text-amber-300 text-xs font-bold shadow-md">
+                  <span>{hoveredNodeInfo.node.name}</span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500 text-zinc-950 font-extrabold">
+                    CURRENT
+                  </span>
+                </div>
+
+                {/* Downstream Unlocks */}
+                {hoveredNodeInfo.dependents.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <ArrowRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="text-[10px] font-mono text-emerald-400 font-bold">UNLOCKS:</span>
+                    {hoveredNodeInfo.dependents.slice(0, 2).map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => handleSelectConceptById(d.id)}
+                        className="px-2 py-0.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-[10px] transition-colors"
+                      >
+                        {d.name}
+                      </button>
+                    ))}
+                    {hoveredNodeInfo.dependents.length > 2 && (
+                      <span className="text-[10px] font-mono text-zinc-500">
+                        +{hoveredNodeInfo.dependents.length - 2} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="absolute bottom-3 left-3 bg-zinc-950/80 border border-zinc-800/80 rounded-lg px-2.5 py-1 text-[10px] font-mono text-zinc-400 backdrop-blur-xs">
-            💡 Drag canvas to pan • Scroll to zoom • Click node to inspect details
+            💡 Drag canvas to pan • Scroll to zoom • Hover over nodes to trace prerequisites
           </div>
         </div>
 
@@ -583,6 +1019,68 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
                 );
               })()}
 
+              {/* Pedagogical Prerequisites Section */}
+              {selectedNode.prerequisites && selectedNode.prerequisites.length > 0 && (
+                <div className="p-3 bg-cyan-950/30 border border-cyan-500/30 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-cyan-300">
+                    <span className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Pedagogical Prerequisites</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-cyan-400/80">
+                      Learn First
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Master these foundational concepts to build a strong theoretical base before tackling this topic:
+                  </p>
+                  <div className="space-y-1.5 pt-1">
+                    {selectedNode.prerequisites.map((pId) => {
+                      // Find prerequisite node
+                      const findInNode = (curr: MindMapNode): MindMapNode | null => {
+                        if (curr.id === pId) return curr;
+                        if (curr.children) {
+                          for (const ch of curr.children) {
+                            const res = findInNode(ch);
+                            if (res) return res;
+                          }
+                        }
+                        return null;
+                      };
+                      const prereq = findInNode(NCERT_CONCEPT_TREE);
+                      if (!prereq) return null;
+                      const pScore = getNodeMasteryScore(prereq, masteries);
+                      const isMastered = pScore >= 80;
+
+                      return (
+                        <button
+                          key={pId}
+                          type="button"
+                          onClick={() => handleSelectConceptById(pId)}
+                          className="w-full p-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-cyan-500/30 text-left text-xs text-zinc-200 flex items-center justify-between transition-colors group"
+                        >
+                          <div className="flex items-center gap-2">
+                            {isMastered ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            )}
+                            <span className="group-hover:text-cyan-300 font-medium">{prereq.name}</span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                              isMastered ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                            }`}
+                          >
+                            {pScore}%
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Description */}
               {selectedNode.description && (
                 <div className="space-y-1">
@@ -634,7 +1132,7 @@ export const ConceptMindMapView: React.FC<ConceptMindMapViewProps> = ({
               <Eye className="w-8 h-8 text-zinc-600 animate-pulse" />
               <div className="text-xs font-medium">No Concept Selected</div>
               <p className="text-[11px] text-zinc-600">
-                Click on any node in the D3 mind map to inspect its formula derivations and mastery progression.
+                Click on any node in the D3 mind map to inspect its formula derivations, prerequisite foundations, and mastery progression.
               </p>
             </div>
           )}
