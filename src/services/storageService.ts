@@ -32,11 +32,77 @@ import {
   safeJsonParse,
 } from '../utils/security';
 import { generateLocalizedParentMessage } from '../utils/parentReportLocalization';
+import {
+  setCookie,
+  getCookie,
+  deleteCookie,
+  setTieredStorage,
+  getTieredStorage,
+  removeTieredStorage,
+} from '../utils/cookieUtils';
 
 const GLOBAL_ACCOUNTS_KEY = 'studyos_student_accounts_registry';
 const ACTIVE_STUDENT_ID_KEY = 'studyos_active_student_id';
+export const SESSION_TOKEN_KEY = 'studyos_session_token';
 const OFFLINE_CONTENT_CACHE_KEY = 'studyos_offline_curriculum_cache_v2';
 const PARENT_REPORT_LOGS_KEY = 'studyos_parent_report_logs';
+
+export interface SessionTokenData {
+  token: string;
+  email: string;
+  studentId: string;
+  createdAt: number;
+  expiresAt: number; // 30 days
+  rememberMe: boolean;
+}
+
+export function generateSessionToken(email: string): string {
+  const clean = email.replace(/[^a-zA-Z0-9]/g, '_');
+  return `st_${clean}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+}
+
+export function saveSessionToken(data: SessionTokenData): void {
+  try {
+    if (data.rememberMe) {
+      localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(data));
+      localStorage.setItem('studyos_remember_me', 'true');
+    } else {
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      localStorage.setItem('studyos_remember_me', 'false');
+      sessionStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(data));
+    }
+    setTieredStorage('studyos_session_token_id', data.token, data.rememberMe ? 30 : 1);
+  } catch (e) {
+    console.warn('[StorageService] Failed to save session token', e);
+  }
+}
+
+export function getSessionToken(): SessionTokenData | null {
+  try {
+    const raw = localStorage.getItem(SESSION_TOKEN_KEY) || sessionStorage.getItem(SESSION_TOKEN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.expiresAt === 'number') {
+      if (Date.now() > parsed.expiresAt) {
+        clearSessionToken();
+        return null;
+      }
+      return parsed as SessionTokenData;
+    }
+  } catch (e) {
+    console.warn('[StorageService] Failed to read session token', e);
+  }
+  return null;
+}
+
+export function clearSessionToken(): void {
+  try {
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    localStorage.removeItem('studyos_remember_me');
+    removeTieredStorage('studyos_session_token_id');
+  } catch (e) {}
+}
 
 export const DEFAULT_STUDENT_ACCOUNTS: StudentAccount[] = [
   {
@@ -280,18 +346,67 @@ export function saveStudentAccounts(accounts: StudentAccount[]): void {
 }
 
 export function getActiveStudentId(): string {
+  // 1. Check valid persistent 30-day session token first
   try {
-    const active = localStorage.getItem(ACTIVE_STUDENT_ID_KEY);
-    if (active) return active;
+    const sessionToken = getSessionToken();
+    if (sessionToken && sessionToken.studentId && sessionToken.studentId !== 'guest_student') {
+      return sessionToken.studentId;
+    }
+  } catch {}
+
+  // 2. Try tiered storage (localStorage -> document.cookie -> sessionStorage)
+  try {
+    const active = getTieredStorage(ACTIVE_STUDENT_ID_KEY);
+    if (active && active !== 'guest_student') return active;
   } catch (e) {
-    console.error('Failed to get active student id', e);
+    console.warn('[StorageService] Error reading tiered active student ID', e);
   }
+
+  // 3. Check if active student email cookie is present and match account
+  try {
+    const cookieEmail = getCookie('studyos_active_email');
+    if (cookieEmail) {
+      const accounts = loadStudentAccounts();
+      const match = accounts.find((a) => a.email && a.email.toLowerCase() === cookieEmail.toLowerCase());
+      if (match) {
+        setActiveStudentId(match.id);
+        return match.id;
+      }
+    }
+  } catch (e) {}
+
+  // 4. Fallback: If user has an authenticated account and did NOT explicitly click "Sign Out",
+  // do NOT reset them to guest_student! Keep them logged in as their authenticated student account.
+  try {
+    const explicitGuest = localStorage.getItem('studyos_explicit_guest');
+    if (!explicitGuest) {
+      const accounts = loadStudentAccounts();
+      const authenticated = accounts.find((a) => a.authProvider && a.authProvider !== 'guest' && Boolean(a.email));
+      if (authenticated) {
+        setActiveStudentId(authenticated.id);
+        return authenticated.id;
+      }
+    }
+  } catch (e) {}
+
   return DEFAULT_STUDENT_ACCOUNTS[0].id;
 }
 
 export function setActiveStudentId(studentId: string): void {
   try {
-    localStorage.setItem(ACTIVE_STUDENT_ID_KEY, studentId);
+    if (studentId && studentId !== 'guest_student') {
+      setTieredStorage(ACTIVE_STUDENT_ID_KEY, studentId, 365);
+      try {
+        localStorage.removeItem('studyos_explicit_guest');
+      } catch {}
+    } else {
+      removeTieredStorage(ACTIVE_STUDENT_ID_KEY);
+      removeTieredStorage('studyos_active_email');
+      clearSessionToken();
+      try {
+        localStorage.setItem('studyos_explicit_guest', 'true');
+      } catch {}
+    }
   } catch (e) {
     console.error('Failed to set active student id', e);
   }
@@ -707,13 +822,28 @@ export function saveUserProfile(profile: UserProfile, studentId?: string): void 
     localStorage.setItem(getScopedKey('profile', activeId), JSON.stringify({ ...profile, id: activeId }));
     idbSet(getScopedKey('profile', activeId), profile);
 
-    // Auto-sync authenticated profile to server for cross-device persistence
+    // If student is authenticated, sync session cookie & backend session
     if (profile.email && profile.authProvider && profile.authProvider !== 'guest') {
+      setCookie('studyos_active_email', profile.email, 365);
+      setCookie(ACTIVE_STUDENT_ID_KEY, activeId, 365);
+
+      fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: profile.email,
+          studentId: activeId,
+          profile,
+        }),
+      }).catch(() => {});
+
+      // Auto-sync authenticated profile to server for cross-device persistence
       fetch('/api/auth/sync-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: profile.email,
+          studentId: activeId,
           profile,
         }),
       }).catch(() => {});

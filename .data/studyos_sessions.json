@@ -1,0 +1,72 @@
+{
+  "alokinfo30@gmail.com": {
+    "email": "alokinfo30@gmail.com",
+    "studentId": "student_alok_kumar",
+    "profile": {
+      "id": "student_alok_kumar",
+      "name": "Alok Kumar",
+      "email": "alokinfo30@gmail.com",
+      "preferredLanguage": "hi",
+      "selectedExam": "CBSE_10",
+      "targetScore": 95,
+      "examDate": "2026-03-01",
+      "streakDays": 7,
+      "lastActiveDate": "2026-09-18",
+      "activeRole": "student",
+      "goalCategory": "school_board",
+      "selectedBoard": "CBSE",
+      "parentPhone": "9876543210",
+      "parentName": "Ramesh Kumar",
+      "isGoalConfirmed": true,
+      "autoSendReportsToParent": true,
+      "parentReportFrequency": "realtime_each_progress",
+      "authProvider": "google",
+      "googleProfile": {
+        "picture": "https://api.dicebear.com/7.x/bottts/svg?seed=alokinfo30%40gmail.com",
+        "emailVerified": true
+      },
+      "isOfflineMode": false,
+      "enableOfflineTTSLessons": true,
+      "ttsSpeechRate": 1,
+      "ttsAutoPlayLessons": false,
+      "lastAutoDispatchedAt": 1789740461222
+    },
+    "updatedAt": 1789741320049,
+    "expiresAt": 1792333320049
+  },
+  "__last_active__": {
+    "email": "alokinfo30@gmail.com",
+    "studentId": "student_alok_kumar",
+    "profile": {
+      "id": "student_alok_kumar",
+      "name": "Alok Kumar",
+      "email": "alokinfo30@gmail.com",
+      "preferredLanguage": "hi",
+      "selectedExam": "CBSE_10",
+      "targetScore": 95,
+      "examDate": "2026-03-01",
+      "streakDays": 7,
+      "lastActiveDate": "2026-09-18",
+      "activeRole": "student",
+      "goalCategory": "school_board",
+      "selectedBoard": "CBSE",
+      "parentPhone": "9876543210",
+      "parentName": "Ramesh Kumar",
+      "isGoalConfirmed": true,
+      "autoSendReportsToParent": true,
+      "parentReportFrequency": "realtime_each_progress",
+      "authProvider": "google",
+      "googleProfile": {
+        "picture": "https://api.dicebear.com/7.x/bottts/svg?seed=alokinfo30%40gmail.com",
+        "emailVerified": true
+      },
+      "isOfflineMode": false,
+      "enableOfflineTTSLessons": true,
+      "ttsSpeechRate": 1,
+      "ttsAutoPlayLessons": false,
+      "lastAutoDispatchedAt": 1789740461222
+    },
+    "updatedAt": 1789741320049,
+    "expiresAt": 1792333320049
+  }
+}

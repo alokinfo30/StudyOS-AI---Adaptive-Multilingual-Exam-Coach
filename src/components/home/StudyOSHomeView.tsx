@@ -92,6 +92,7 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
 
   // 4-Step Onboarding Wizard State
   const [wizardStep, setWizardStep] = useState<number>(() => {
+    if (profile.isGoalConfirmed) return 4;
     return isLoggedIn ? 2 : 1;
   });
   const [selectedGoal, setSelectedGoal] = useState<GoalCategory>(
@@ -149,10 +150,14 @@ export const StudyOSHomeView: React.FC<StudyOSHomeViewProps> = ({
       const timer = setTimeout(() => setShowStep2Toast(false), 4500);
       return () => clearTimeout(timer);
     } else if (!prevLoggedInRef.current && isLoggedIn) {
-      setWizardStep(2);
-      setShowStep2Toast(true);
-      const timer = setTimeout(() => setShowStep2Toast(false), 4500);
-      return () => clearTimeout(timer);
+      if (profile.isGoalConfirmed) {
+        setWizardStep(4);
+      } else {
+        setWizardStep(2);
+        setShowStep2Toast(true);
+        const timer = setTimeout(() => setShowStep2Toast(false), 4500);
+        return () => clearTimeout(timer);
+      }
     }
     prevLoggedInRef.current = isLoggedIn;
   }, [isLoggedIn, loginTimestamp]);

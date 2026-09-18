@@ -24,6 +24,8 @@ import { UserProfile, StudentAccount } from '../../types';
 import {
   loadStudentAccounts,
   LoginMethod,
+  saveSessionToken,
+  generateSessionToken,
 } from '../../services/storageService';
 import { EmailVerificationModal } from './EmailVerificationModal';
 
@@ -36,7 +38,8 @@ interface GoogleAuthModalProps {
     name: string,
     picture?: string,
     method?: LoginMethod,
-    phone?: string
+    phone?: string,
+    rememberMe?: boolean
   ) => void;
   onSignOut: () => void;
   onVerificationStateChange?: (isVerifying: boolean) => void;
@@ -81,6 +84,15 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
 
   // Load existing registered accounts from storage (for background email deduplication)
   const [accountsRegistry, setAccountsRegistry] = useState<StudentAccount[]>([]);
+
+  // Remember Me Checkbox State (persists session token in localStorage for 30 days)
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('studyos_remember_me') !== 'false';
+    } catch {
+      return true;
+    }
+  });
 
   // Email Verification Middleware Modal State
   const [isEmailVerificationModalOpen, setIsEmailVerificationModalOpen] = useState(false);
@@ -184,7 +196,20 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
         existingMatch?.parentPhone ||
         (cleanEmail === 'alokinfo30@gmail.com' ? '+919876543210' : '+919876543210');
 
-      onGoogleLoginSuccess(cleanEmail, finalName, finalAvatar, method, finalPhone);
+      const targetStudentId = existingMatch ? existingMatch.id : `student_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const sessionToken = generateSessionToken(cleanEmail);
+
+      // Persist session token in localStorage for 30 days if Remember Me is checked
+      saveSessionToken({
+        token: sessionToken,
+        email: cleanEmail,
+        studentId: targetStudentId,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000),
+        rememberMe,
+      });
+
+      onGoogleLoginSuccess(cleanEmail, finalName, finalAvatar, method, finalPhone, rememberMe);
       setIsLoading(false);
       onClose();
     }, 200);
@@ -640,6 +665,31 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                 <School className="w-4 h-4 mb-1" />
                 <span>Roll No.</span>
               </button>
+            </div>
+
+            {/* Remember Me Toggle: 30-Day Persistent Token */}
+            <div className="px-3 py-2.5 rounded-xl bg-zinc-950/90 border border-zinc-800/90 flex items-center justify-between gap-3">
+              <label htmlFor="auth-remember-me" className="flex items-center gap-2.5 cursor-pointer select-none flex-1">
+                <input
+                  type="checkbox"
+                  id="auth-remember-me"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-amber-500 focus:ring-amber-500/30 accent-amber-500 cursor-pointer"
+                />
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-zinc-200">Remember Me</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-400 font-medium">
+                      30 Days
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 leading-tight">
+                    Persist session token across browser restarts & mobile reloads
+                  </p>
+                </div>
+              </label>
+              <Shield className="w-4 h-4 text-amber-400/70 shrink-0" />
             </div>
 
             {/* Same-Email Unification Live Detector */}

@@ -40,6 +40,13 @@ app.post('/api/auth/verify-code', async (req, res) => {
     }
 
     const result = verifyEmailCode(email, code);
+    if (result && result.verified) {
+      const cleanEmail = email.trim().toLowerCase();
+      res.setHeader('Set-Cookie', [
+        `studyos_session=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+        `studyos_active_email=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      ]);
+    }
     res.json(result);
   } catch (error: any) {
     console.error('Verify code error:', error);
@@ -47,7 +54,22 @@ app.post('/api/auth/verify-code', async (req, res) => {
   }
 });
 
-// Profile Cross-Device Persistence & Sync
+// Cookie parsing helper for session verification
+function parseCookies(req: express.Request): Record<string, string> {
+  const list: Record<string, string> = {};
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return list;
+  cookieHeader.split(';').forEach((cookie) => {
+    const parts = cookie.split('=');
+    const name = parts.shift()?.trim();
+    if (name) {
+      list[name] = decodeURIComponent(parts.join('=').trim());
+    }
+  });
+  return list;
+}
+
+// Profile & Active Session Cross-Device & Mobile Persistence
 const DATA_DIR = path.join(__dirname, '.data');
 if (!fs.existsSync(DATA_DIR)) {
   try {
@@ -57,6 +79,10 @@ if (!fs.existsSync(DATA_DIR)) {
 const PROFILES_STORE_FILE = fs.existsSync(DATA_DIR)
   ? path.join(DATA_DIR, 'studyos_profiles.json')
   : path.join('/tmp', 'studyos_profiles.json');
+
+const SESSIONS_STORE_FILE = fs.existsSync(DATA_DIR)
+  ? path.join(DATA_DIR, 'studyos_sessions.json')
+  : path.join('/tmp', 'studyos_sessions.json');
 
 const SEEDED_DEFAULT_PROFILES: Record<string, any> = {
   'alokinfo30@gmail.com': {
@@ -165,6 +191,173 @@ app.get('/api/auth/get-profile', (req, res) => {
       });
     }
     res.json({ success: false, message: 'No remote profile found' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Mobile & Cross-Device Active Session Handlers
+app.post('/api/auth/session', (req, res) => {
+  try {
+    const { email, studentId, profile, account, sessionToken, rememberMe, expiresAt } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email required' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const resolvedStudentId = studentId || (account && account.id) || (profile && profile.id) || 'student_alok_kumar';
+    const resolvedToken = sessionToken || `token_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const resolvedExpiresAt = expiresAt || (Date.now() + (rememberMe !== false ? 30 * 864e5 : 24 * 3600e3));
+
+    let sessions: Record<string, any> = {};
+    if (fs.existsSync(SESSIONS_STORE_FILE)) {
+      try {
+        sessions = JSON.parse(fs.readFileSync(SESSIONS_STORE_FILE, 'utf-8'));
+      } catch {}
+    }
+    const sessionData = {
+      email: cleanEmail,
+      studentId: resolvedStudentId,
+      sessionToken: resolvedToken,
+      expiresAt: resolvedExpiresAt,
+      rememberMe: rememberMe !== false,
+      profile,
+      account,
+      updatedAt: Date.now(),
+    };
+    sessions[cleanEmail] = sessionData;
+    sessions['__last_active__'] = sessionData;
+    try {
+      fs.writeFileSync(SESSIONS_STORE_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
+    } catch {}
+
+    // Update profiles store as well
+    let store: Record<string, any> = { ...SEEDED_DEFAULT_PROFILES };
+    if (fs.existsSync(PROFILES_STORE_FILE)) {
+      try {
+        store = { ...store, ...JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8')) };
+      } catch {}
+    }
+    store[cleanEmail] = {
+      profile: profile || store[cleanEmail]?.profile,
+      account: account || store[cleanEmail]?.account,
+      updatedAt: Date.now(),
+    };
+    try {
+      fs.writeFileSync(PROFILES_STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
+    } catch {}
+
+    res.setHeader('Set-Cookie', [
+      `studyos_session=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      `studyos_active_email=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      `studyos_active_student_id=${encodeURIComponent(resolvedStudentId)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+    ]);
+
+    res.json({ success: true, session: sessionData });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/auth/session', (req, res) => {
+  try {
+    const cookies = parseCookies(req);
+    let targetEmail = (cookies.studyos_session || cookies.studyos_active_email || req.query.email as string || '').trim().toLowerCase();
+    let targetStudentId = (cookies.studyos_active_student_id || req.query.studentId as string || '').trim();
+
+    let sessions: Record<string, any> = {};
+    if (fs.existsSync(SESSIONS_STORE_FILE)) {
+      try {
+        sessions = JSON.parse(fs.readFileSync(SESSIONS_STORE_FILE, 'utf-8'));
+      } catch {}
+    }
+
+    let profilesStore: Record<string, any> = { ...SEEDED_DEFAULT_PROFILES };
+    if (fs.existsSync(PROFILES_STORE_FILE)) {
+      try {
+        profilesStore = { ...profilesStore, ...JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8')) };
+      } catch {}
+    }
+
+    let matchedSession: any = null;
+
+    if (targetEmail && sessions[targetEmail]) {
+      matchedSession = sessions[targetEmail];
+    } else if (targetEmail && profilesStore[targetEmail]) {
+      const record = profilesStore[targetEmail];
+      matchedSession = {
+        email: targetEmail,
+        studentId: targetStudentId || record.account?.id || record.profile?.id || 'student_alok_kumar',
+        profile: record.profile,
+        account: record.account,
+        expiresAt: Date.now() + 30 * 864e5,
+        updatedAt: Date.now(),
+      };
+    } else if (!targetEmail && sessions['__last_active__']) {
+      matchedSession = sessions['__last_active__'];
+    } else if (!targetEmail && SEEDED_DEFAULT_PROFILES['alokinfo30@gmail.com']) {
+      const defaultRecord = SEEDED_DEFAULT_PROFILES['alokinfo30@gmail.com'];
+      matchedSession = {
+        email: 'alokinfo30@gmail.com',
+        studentId: 'student_alok_kumar',
+        profile: defaultRecord.profile,
+        account: defaultRecord.account,
+        expiresAt: Date.now() + 30 * 864e5,
+        updatedAt: Date.now(),
+      };
+    }
+
+    if (matchedSession) {
+      const cleanEmail = matchedSession.email;
+      const sId = matchedSession.studentId || 'student_alok_kumar';
+
+      // Refresh session expiration if nearing expiration (less than 7 days)
+      const NEAR_EXPIRY = 7 * 864e5;
+      if (!matchedSession.expiresAt || matchedSession.expiresAt - Date.now() < NEAR_EXPIRY) {
+        matchedSession.expiresAt = Date.now() + 30 * 864e5;
+        matchedSession.updatedAt = Date.now();
+        sessions[cleanEmail] = matchedSession;
+        sessions['__last_active__'] = matchedSession;
+        try {
+          fs.writeFileSync(SESSIONS_STORE_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
+        } catch {}
+      }
+
+      res.setHeader('Set-Cookie', [
+        `studyos_session=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+        `studyos_active_email=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+        `studyos_active_student_id=${encodeURIComponent(sId)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      ]);
+
+      return res.json({
+        success: true,
+        authenticated: true,
+        session: matchedSession,
+      });
+    }
+
+    res.json({ success: true, authenticated: false, message: 'No active session' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  try {
+    if (fs.existsSync(SESSIONS_STORE_FILE)) {
+      try {
+        const sessions = JSON.parse(fs.readFileSync(SESSIONS_STORE_FILE, 'utf-8'));
+        delete sessions['__last_active__'];
+        fs.writeFileSync(SESSIONS_STORE_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
+      } catch {}
+    }
+
+    res.setHeader('Set-Cookie', [
+      `studyos_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`,
+      `studyos_active_email=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`,
+      `studyos_active_student_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`,
+    ]);
+
+    res.json({ success: true, message: 'Logged out successfully' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

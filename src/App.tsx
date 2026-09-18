@@ -31,6 +31,10 @@ import {
   LoginMethod,
   checkAndDispatchPeriodicParentReport,
   clearLastCourseSession,
+  getSessionToken,
+  saveSessionToken,
+  clearSessionToken,
+  generateSessionToken,
 } from './services/storageService';
 import { calculateConfidenceWeightedAccuracy } from './utils/masteryCalculator';
 import { Navbar } from './components/layout/Navbar';
@@ -63,6 +67,11 @@ import { ApprenticeEducatorHub } from './components/teaching/ApprenticeEducatorH
 import { applyAccentColorToDocument } from './utils/themeUtils';
 import { playMasteryPopSound } from './utils/audioEffects';
 import { SessionSentinel } from './utils/sessionSentinel';
+import {
+  getTieredStorage,
+  setTieredStorage,
+  removeTieredStorage,
+} from './utils/cookieUtils';
 import { WifiOff, Zap } from 'lucide-react';
 
 export default function App() {
@@ -75,7 +84,20 @@ export default function App() {
     loadConceptMasteries(activeStudentId)
   );
   const [dna, setDna] = useState<StudentDNA>(() => loadStudentDNA(activeStudentId));
-  const [currentTab, setCurrentTab] = useState<string>('home');
+
+  // Persistent active tab across reloads
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    try {
+      const saved = getTieredStorage('studyos_active_tab');
+      if (saved && saved !== 'home') return saved;
+    } catch {}
+    const initialProfile = loadUserProfile(getActiveStudentId());
+    if (initialProfile.authProvider !== 'guest' && Boolean(initialProfile.email) && initialProfile.isGoalConfirmed) {
+      return 'mission';
+    }
+    return 'home';
+  });
+
   const [isAICoachOpen, setIsAICoachOpen] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
   const [isGoogleAuthOpen, setIsGoogleAuthOpen] = useState<boolean>(false);
@@ -104,6 +126,182 @@ export default function App() {
     ambientSoundType: 'binaural_alpha',
     blockedDistractionCount: 0,
   });
+
+  // Track active tab across reloads
+  useEffect(() => {
+    if (currentTab) {
+      setTieredStorage('studyos_active_tab', currentTab, 30);
+    }
+  }, [currentTab]);
+
+  // Mobile & Cross-Device Session Auto-Recovery on Mount / Reload
+  useEffect(() => {
+    fetch('/api/auth/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.authenticated && data?.session) {
+          const session = data.session;
+          const sessionEmail = session.email;
+          const remoteProfile = session.profile;
+          const targetId = session.studentId || (session.account && session.account.id) || activeStudentId;
+
+          if (targetId && targetId !== 'guest_student') {
+            setActiveStudentId(targetId);
+            setActiveId(targetId);
+
+            if (remoteProfile) {
+              setProfile((prev) => {
+                const merged: UserProfile = { ...prev, ...remoteProfile, id: targetId, email: sessionEmail };
+                saveUserProfile(merged, targetId);
+                return merged;
+              });
+            }
+            const restoredMasteries = loadConceptMasteries(targetId);
+            setMasteries(restoredMasteries);
+            const restoredDna = loadStudentDNA(targetId);
+            setDna(restoredDna);
+
+            const savedTab = getTieredStorage('studyos_active_tab');
+            if (savedTab && savedTab !== 'home') {
+              setCurrentTab(savedTab);
+            } else if (remoteProfile?.isGoalConfirmed) {
+              setCurrentTab((curr) => (curr === 'home' ? 'mission' : curr));
+            }
+          }
+        }
+      })
+      .catch((e) => {
+        console.warn('[SessionRecovery] Backend check fallback', e);
+      });
+  }, []);
+
+  // Window 'storage' event listener: detect authentication changes from other tabs and update activeStudentId & profile in real-time
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      const authKeys = [
+        'studyos_active_student_id',
+        'studyos_session_token',
+        'studyos_active_email',
+        'studyos_student_accounts_registry',
+        'studyos_explicit_guest',
+        'studyos_remember_me',
+      ];
+
+      const isAuthKey = e.key === null || authKeys.includes(e.key) || (e.key && e.key.startsWith('profile_'));
+
+      if (isAuthKey) {
+        const resolvedId = getActiveStudentId();
+        const updatedProfile = loadUserProfile(resolvedId);
+
+        if (resolvedId !== activeStudentId) {
+          setActiveStudentId(resolvedId);
+          setActiveId(resolvedId);
+          setProfile(updatedProfile);
+          setMasteries(loadConceptMasteries(resolvedId));
+          setDna(loadStudentDNA(resolvedId));
+          setLastLoginTimestamp(Date.now());
+          if (updatedProfile.isGoalConfirmed && currentTab === 'home') {
+            setCurrentTab('mission');
+          }
+        } else {
+          // Same student, but profile state or session token updated in another tab
+          setProfile(updatedProfile);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [activeStudentId, currentTab]);
+
+  // Background service: Poll '/api/auth/session' every 5 minutes when the app is active
+  // Keeps authentication cookie alive and silently refreshes user's session state if it nears expiration
+  useEffect(() => {
+    const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+    let lastPollTime = Date.now();
+
+    const refreshSessionKeepAlive = async () => {
+      // Only execute when the app is active (not hidden in background)
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+
+      try {
+        lastPollTime = Date.now();
+        const res = await fetch('/api/auth/session');
+        const data = await res.json();
+
+        if (data?.authenticated && data?.session) {
+          const session = data.session;
+          const sessionEmail = session.email;
+          const remoteProfile = session.profile;
+          const targetId = session.studentId || (session.account && session.account.id) || activeStudentId;
+
+          // Check if session token exists and if it nears expiration (less than 7 days remaining out of 30 days)
+          const currentToken = getSessionToken();
+          const NEAR_EXPIRATION_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+          const isNearExpiration = !currentToken || (currentToken.expiresAt - Date.now() < NEAR_EXPIRATION_THRESHOLD_MS);
+
+          if (isNearExpiration) {
+            // Silently extend the 30-day session token in localStorage
+            const freshToken = currentToken?.token || generateSessionToken(sessionEmail);
+            saveSessionToken({
+              token: freshToken,
+              email: sessionEmail,
+              studentId: targetId,
+              createdAt: currentToken?.createdAt || Date.now(),
+              expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // Silently refresh 30 days
+              rememberMe: true,
+            });
+
+            // Keep server session synchronized with the renewed expiration
+            fetch('/api/auth/session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: sessionEmail,
+                studentId: targetId,
+                sessionToken: freshToken,
+                rememberMe: true,
+                profile: remoteProfile || profile,
+                account: session.account,
+              }),
+            }).catch(() => {});
+          }
+
+          // Silently refresh profile if remote has newer updates
+          if (remoteProfile && targetId && targetId !== 'guest_student') {
+            setProfile((prev) => {
+              const merged: UserProfile = { ...prev, ...remoteProfile, id: targetId, email: sessionEmail };
+              saveUserProfile(merged, targetId);
+              return merged;
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[SessionKeepAlive] Background session poll failed gracefully', err);
+      }
+    };
+
+    // 5-minute background polling interval
+    const intervalId = setInterval(refreshSessionKeepAlive, POLL_INTERVAL_MS);
+
+    // Silent refresh on visibility change back to active if >= 5 mins elapsed
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastPollTime >= POLL_INTERVAL_MS) {
+        refreshSessionKeepAlive();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeStudentId, profile]);
 
   // Apply custom UI accent color across the app dynamically
   useEffect(() => {
@@ -196,7 +394,8 @@ export default function App() {
     name: string,
     picture?: string,
     method: LoginMethod = 'google',
-    phone?: string
+    phone?: string,
+    rememberMe: boolean = true
   ) => {
     const resolvedPhone = phone || (email.toLowerCase() === 'alokinfo30@gmail.com' ? '+919876543210' : undefined);
     const account = loginOrRegisterStudent({
@@ -232,6 +431,31 @@ export default function App() {
     setDna(nextDna);
     setLastLoginTimestamp(Date.now());
 
+    // Generate and persist 30-day session token if Remember Me is active
+    const sessionToken = getSessionToken()?.token || generateSessionToken(account.email);
+    saveSessionToken({
+      token: sessionToken,
+      email: account.email,
+      studentId: account.id,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000),
+      rememberMe,
+    });
+
+    // Persist active session to server & set HTTP cookies
+    fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: account.email,
+        studentId: account.id,
+        sessionToken,
+        rememberMe,
+        profile: nextProfile,
+        account,
+      }),
+    }).catch(() => {});
+
     // If goal is already confirmed, open mission dashboard directly so user is immediately active
     if (nextProfile.isGoalConfirmed) {
       setCurrentTab('mission');
@@ -241,6 +465,11 @@ export default function App() {
   };
 
   const handleSignOutGoogle = () => {
+    // Notify server to clear session cookie and remote session
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    clearSessionToken();
+    removeTieredStorage('studyos_active_tab');
+    setActiveStudentId('guest_student');
     setActiveId('guest_student');
     SessionSentinel.terminateSession({
       studentId: activeStudentId,

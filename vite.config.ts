@@ -1,12 +1,86 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
 import { defineConfig, Plugin } from 'vite';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { sendVerificationEmail, verifyEmailCode } from './src/server/emailAuth';
 
 dotenv.config();
+
+const DATA_DIR = path.join(__dirname, '.data');
+if (!fs.existsSync(DATA_DIR)) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  } catch {}
+}
+const PROFILES_STORE_FILE = fs.existsSync(DATA_DIR)
+  ? path.join(DATA_DIR, 'studyos_profiles.json')
+  : path.join('/tmp', 'studyos_profiles.json');
+
+const SESSIONS_STORE_FILE = fs.existsSync(DATA_DIR)
+  ? path.join(DATA_DIR, 'studyos_sessions.json')
+  : path.join('/tmp', 'studyos_sessions.json');
+
+const SEEDED_DEFAULT_PROFILES: Record<string, any> = {
+  'alokinfo30@gmail.com': {
+    profile: {
+      id: 'student_alok_kumar',
+      name: 'Alok Kumar',
+      email: 'alokinfo30@gmail.com',
+      preferredLanguage: 'hi',
+      selectedExam: 'CBSE_10',
+      targetScore: 95,
+      examDate: '2026-03-01',
+      streakDays: 7,
+      lastActiveDate: new Date().toISOString().split('T')[0],
+      activeRole: 'student',
+      goalCategory: 'school_board',
+      selectedBoard: 'CBSE',
+      selectedClass: '10',
+      parentPhone: '+919876543210',
+      parentName: 'Ramesh Kumar',
+      isGoalConfirmed: true,
+      authProvider: 'google',
+      linkedMethods: ['google', 'email'],
+      emailVerified: true,
+      isOfflineMode: false,
+    },
+    account: {
+      id: 'student_alok_kumar',
+      name: 'Alok Kumar',
+      email: 'alokinfo30@gmail.com',
+      avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=alokinfo30%40gmail.com',
+      createdAt: 1700000000000,
+      selectedExam: 'CBSE_10',
+      preferredLanguage: 'hi',
+      goalCategory: 'school_board',
+      selectedBoard: 'CBSE',
+      selectedClass: '10',
+      parentPhone: '+919876543210',
+      parentName: 'Ramesh Kumar',
+      isGoalConfirmed: true,
+      autoSendReportsToParent: true,
+      parentReportFrequency: 'daily_summary',
+      authProvider: 'google',
+    },
+    updatedAt: Date.now(),
+  },
+};
+
+function parseCookiesFromHeader(cookieHeader?: string): Record<string, string> {
+  const list: Record<string, string> = {};
+  if (!cookieHeader) return list;
+  cookieHeader.split(';').forEach((cookie) => {
+    const parts = cookie.split('=');
+    const name = parts.shift()?.trim();
+    if (name) {
+      list[name] = decodeURIComponent(parts.join('=').trim());
+    }
+  });
+  return list;
+}
 
 function apiDevServerPlugin(): Plugin {
   let ai: GoogleGenAI | null = null;
@@ -70,7 +144,236 @@ function apiDevServerPlugin(): Plugin {
               return;
             }
             const result = verifyEmailCode(email, code);
+            if (result && result.verified) {
+              const cleanEmail = email.trim().toLowerCase();
+              res.setHeader('Set-Cookie', [
+                `studyos_session=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+                `studyos_active_email=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+              ]);
+            }
             res.end(JSON.stringify(result));
+            return;
+          }
+
+          // Active session management for mobile persistence & reloads
+          if (req.url === '/api/auth/session' && req.method === 'POST') {
+            const body = await parseBody();
+            const { email, studentId, profile, account, sessionToken, rememberMe, expiresAt } = body;
+            if (!email) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: 'Email required' }));
+              return;
+            }
+            const cleanEmail = email.trim().toLowerCase();
+            const resolvedStudentId = studentId || (account && account.id) || (profile && profile.id) || 'student_alok_kumar';
+            const resolvedToken = sessionToken || `token_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            const resolvedExpiresAt = expiresAt || (Date.now() + (rememberMe !== false ? 30 * 864e5 : 24 * 3600e3));
+
+            let sessions: Record<string, any> = {};
+            if (fs.existsSync(SESSIONS_STORE_FILE)) {
+              try {
+                sessions = JSON.parse(fs.readFileSync(SESSIONS_STORE_FILE, 'utf-8'));
+              } catch {}
+            }
+            const sessionData = {
+              email: cleanEmail,
+              studentId: resolvedStudentId,
+              sessionToken: resolvedToken,
+              expiresAt: resolvedExpiresAt,
+              rememberMe: rememberMe !== false,
+              profile,
+              account,
+              updatedAt: Date.now(),
+            };
+            sessions[cleanEmail] = sessionData;
+            sessions['__last_active__'] = sessionData;
+            try {
+              fs.writeFileSync(SESSIONS_STORE_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
+            } catch {}
+
+            let store: Record<string, any> = { ...SEEDED_DEFAULT_PROFILES };
+            if (fs.existsSync(PROFILES_STORE_FILE)) {
+              try {
+                store = { ...store, ...JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8')) };
+              } catch {}
+            }
+            store[cleanEmail] = {
+              profile: profile || store[cleanEmail]?.profile,
+              account: account || store[cleanEmail]?.account,
+              updatedAt: Date.now(),
+            };
+            try {
+              fs.writeFileSync(PROFILES_STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
+            } catch {}
+
+            res.setHeader('Set-Cookie', [
+              `studyos_session=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+              `studyos_active_email=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+              `studyos_active_student_id=${encodeURIComponent(resolvedStudentId)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+            ]);
+
+            res.end(JSON.stringify({ success: true, session: sessionData }));
+            return;
+          }
+
+          if (req.url?.startsWith('/api/auth/session') && req.method === 'GET') {
+            const cookies = parseCookiesFromHeader(req.headers.cookie);
+            const urlObj = new URL(req.url, 'http://localhost:3000');
+            let targetEmail = (cookies.studyos_session || cookies.studyos_active_email || urlObj.searchParams.get('email') || '').trim().toLowerCase();
+            let targetStudentId = (cookies.studyos_active_student_id || urlObj.searchParams.get('studentId') || '').trim();
+
+            let sessions: Record<string, any> = {};
+            if (fs.existsSync(SESSIONS_STORE_FILE)) {
+              try {
+                sessions = JSON.parse(fs.readFileSync(SESSIONS_STORE_FILE, 'utf-8'));
+              } catch {}
+            }
+
+            let profilesStore: Record<string, any> = { ...SEEDED_DEFAULT_PROFILES };
+            if (fs.existsSync(PROFILES_STORE_FILE)) {
+              try {
+                profilesStore = { ...profilesStore, ...JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8')) };
+              } catch {}
+            }
+
+            let matchedSession: any = null;
+
+            if (targetEmail && sessions[targetEmail]) {
+              matchedSession = sessions[targetEmail];
+            } else if (targetEmail && profilesStore[targetEmail]) {
+              const record = profilesStore[targetEmail];
+              matchedSession = {
+                email: targetEmail,
+                studentId: targetStudentId || record.account?.id || record.profile?.id || 'student_alok_kumar',
+                profile: record.profile,
+                account: record.account,
+                expiresAt: Date.now() + 30 * 864e5,
+                updatedAt: Date.now(),
+              };
+            } else if (!targetEmail && sessions['__last_active__']) {
+              matchedSession = sessions['__last_active__'];
+            } else if (!targetEmail && SEEDED_DEFAULT_PROFILES['alokinfo30@gmail.com']) {
+              const defaultRecord = SEEDED_DEFAULT_PROFILES['alokinfo30@gmail.com'];
+              matchedSession = {
+                email: 'alokinfo30@gmail.com',
+                studentId: 'student_alok_kumar',
+                profile: defaultRecord.profile,
+                account: defaultRecord.account,
+                expiresAt: Date.now() + 30 * 864e5,
+                updatedAt: Date.now(),
+              };
+            }
+
+            if (matchedSession) {
+              const cleanEmail = matchedSession.email;
+              const sId = matchedSession.studentId || 'student_alok_kumar';
+
+              // Refresh session expiration if nearing expiration (less than 7 days)
+              const NEAR_EXPIRY = 7 * 864e5;
+              if (!matchedSession.expiresAt || matchedSession.expiresAt - Date.now() < NEAR_EXPIRY) {
+                matchedSession.expiresAt = Date.now() + 30 * 864e5;
+                matchedSession.updatedAt = Date.now();
+                sessions[cleanEmail] = matchedSession;
+                sessions['__last_active__'] = matchedSession;
+                try {
+                  fs.writeFileSync(SESSIONS_STORE_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
+                } catch {}
+              }
+
+              res.setHeader('Set-Cookie', [
+                `studyos_session=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+                `studyos_active_email=${encodeURIComponent(cleanEmail)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+                `studyos_active_student_id=${encodeURIComponent(sId)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+              ]);
+
+              res.end(JSON.stringify({
+                success: true,
+                authenticated: true,
+                session: matchedSession,
+              }));
+              return;
+            }
+
+            res.end(JSON.stringify({ success: true, authenticated: false, message: 'No active session' }));
+            return;
+          }
+
+          if (req.url === '/api/auth/logout' && req.method === 'POST') {
+            if (fs.existsSync(SESSIONS_STORE_FILE)) {
+              try {
+                const sessions = JSON.parse(fs.readFileSync(SESSIONS_STORE_FILE, 'utf-8'));
+                delete sessions['__last_active__'];
+                fs.writeFileSync(SESSIONS_STORE_FILE, JSON.stringify(sessions, null, 2), 'utf-8');
+              } catch {}
+            }
+
+            res.setHeader('Set-Cookie', [
+              `studyos_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`,
+              `studyos_active_email=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`,
+              `studyos_active_student_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`,
+            ]);
+
+            res.end(JSON.stringify({ success: true, message: 'Logged out successfully' }));
+            return;
+          }
+
+          if (req.url === '/api/auth/sync-profile' && req.method === 'POST') {
+            const body = await parseBody();
+            const { email, profile, account } = body;
+            if (!email) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: 'Email required for sync' }));
+              return;
+            }
+            const cleanEmail = email.trim().toLowerCase();
+            let store: Record<string, any> = { ...SEEDED_DEFAULT_PROFILES };
+            if (fs.existsSync(PROFILES_STORE_FILE)) {
+              try {
+                store = { ...store, ...JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8')) };
+              } catch {}
+            }
+            store[cleanEmail] = {
+              profile,
+              account,
+              updatedAt: Date.now(),
+            };
+            try {
+              fs.writeFileSync(PROFILES_STORE_FILE, JSON.stringify(store, null, 2), 'utf-8');
+            } catch {}
+            res.end(JSON.stringify({ success: true, message: 'Profile synced successfully across devices' }));
+            return;
+          }
+
+          if (req.url?.startsWith('/api/auth/get-profile') && req.method === 'GET') {
+            const urlObj = new URL(req.url, 'http://localhost:3000');
+            const email = (urlObj.searchParams.get('email') || '').trim().toLowerCase();
+            if (!email) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: 'Email required' }));
+              return;
+            }
+            let record: any = null;
+            if (fs.existsSync(PROFILES_STORE_FILE)) {
+              try {
+                const store = JSON.parse(fs.readFileSync(PROFILES_STORE_FILE, 'utf-8'));
+                if (store[email]) {
+                  record = store[email];
+                }
+              } catch {}
+            }
+            if (!record && SEEDED_DEFAULT_PROFILES[email]) {
+              record = SEEDED_DEFAULT_PROFILES[email];
+            }
+            if (record) {
+              res.end(JSON.stringify({
+                success: true,
+                data: record,
+                profile: record.profile,
+                account: record.account,
+              }));
+              return;
+            }
+            res.end(JSON.stringify({ success: false, message: 'No remote profile found' }));
             return;
           }
 
