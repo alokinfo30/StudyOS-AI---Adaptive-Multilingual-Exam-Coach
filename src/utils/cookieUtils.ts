@@ -10,11 +10,12 @@
 export function setCookie(name: string, value: string, days = 365): void {
   if (typeof document === 'undefined') return;
   try {
+    const maxAge = Math.floor(days * 86400);
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    // SameSite=Lax allows cookie to persist across reloads and top-level navigations
+    // SameSite=Lax allows cookie to persist across mobile reloads and top-level navigations
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const secureFlag = isHttps ? '; Secure' : '';
-    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax${secureFlag}`;
+    document.cookie = `${name}=${encodeURIComponent(value)}; Max-Age=${maxAge}; expires=${expires}; path=/; SameSite=Lax${secureFlag}`;
   } catch (e) {
     console.warn('[CookieUtils] Failed to set cookie:', name, e);
   }
@@ -26,7 +27,14 @@ export function getCookie(name: string): string | null {
     const cookieString = document.cookie;
     if (!cookieString) return null;
     const match = cookieString.match(new RegExp('(?:^|;\\s*)' + name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') + '=([^;]*)'));
-    return match ? decodeURIComponent(match[1]) : null;
+    if (match && match[1]) {
+      try {
+        return decodeURIComponent(match[1].trim());
+      } catch {
+        return match[1].trim();
+      }
+    }
+    return null;
   } catch (e) {
     console.warn('[CookieUtils] Failed to read cookie:', name, e);
     return null;

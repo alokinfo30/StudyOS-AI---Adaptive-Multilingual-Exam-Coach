@@ -63,15 +63,20 @@ export function generateSessionToken(email: string): string {
 
 export function saveSessionToken(data: SessionTokenData): void {
   try {
-    if (data.rememberMe) {
-      localStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(data));
-      localStorage.setItem('studyos_remember_me', 'true');
-    } else {
-      localStorage.removeItem(SESSION_TOKEN_KEY);
-      localStorage.setItem('studyos_remember_me', 'false');
-      sessionStorage.setItem(SESSION_TOKEN_KEY, JSON.stringify(data));
-    }
-    setTieredStorage('studyos_session_token_id', data.token, data.rememberMe ? 30 : 1);
+    // Continuous login persistence: Always save to localStorage AND sessionStorage AND cookie AND IndexedDB
+    // so mobile browsers that reload, background, or recycle tabs maintain active login state unless explicitly logged out
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(SESSION_TOKEN_KEY, serialized);
+    sessionStorage.setItem(SESSION_TOKEN_KEY, serialized);
+    localStorage.setItem('studyos_remember_me', data.rememberMe ? 'true' : 'false');
+    
+    // Tiered storage & cookies with 30-day persistence
+    const days = data.rememberMe ? 30 : 7;
+    setTieredStorage('studyos_session_token_id', data.token, days);
+    setTieredStorage(SESSION_TOKEN_KEY, serialized, days);
+    
+    // Asynchronously store in IndexedDB as Tier-4 backup
+    idbSet(SESSION_TOKEN_KEY, data);
   } catch (e) {
     console.warn('[StorageService] Failed to save session token', e);
   }
@@ -79,15 +84,37 @@ export function saveSessionToken(data: SessionTokenData): void {
 
 export function getSessionToken(): SessionTokenData | null {
   try {
-    const raw = localStorage.getItem(SESSION_TOKEN_KEY) || sessionStorage.getItem(SESSION_TOKEN_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.expiresAt === 'number') {
-      if (Date.now() > parsed.expiresAt) {
-        clearSessionToken();
-        return null;
+    let raw = localStorage.getItem(SESSION_TOKEN_KEY);
+    if (!raw) {
+      raw = sessionStorage.getItem(SESSION_TOKEN_KEY);
+    }
+    if (!raw) {
+      raw = getTieredStorage(SESSION_TOKEN_KEY);
+    }
+    if (!raw) {
+      const tieredId = getTieredStorage('studyos_session_token_id');
+      const tieredStudentId = getTieredStorage(ACTIVE_STUDENT_ID_KEY);
+      const tieredEmail = getTieredStorage('studyos_active_email');
+      if (tieredId && tieredStudentId && tieredStudentId !== 'guest_student' && tieredEmail) {
+        return {
+          token: tieredId,
+          email: tieredEmail,
+          studentId: tieredStudentId,
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 30 * 864e5,
+          rememberMe: true,
+        };
       }
-      return parsed as SessionTokenData;
+    }
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.expiresAt === 'number') {
+        if (Date.now() > parsed.expiresAt) {
+          clearSessionToken();
+          return null;
+        }
+        return parsed as SessionTokenData;
+      }
     }
   } catch (e) {
     console.warn('[StorageService] Failed to read session token', e);
@@ -101,6 +128,8 @@ export function clearSessionToken(): void {
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
     localStorage.removeItem('studyos_remember_me');
     removeTieredStorage('studyos_session_token_id');
+    removeTieredStorage(SESSION_TOKEN_KEY);
+    idbDelete(SESSION_TOKEN_KEY);
   } catch (e) {}
 }
 
@@ -273,7 +302,10 @@ export function getOfflineCachedQuestions(): Question[] {
 
 export function loadStudentAccounts(): StudentAccount[] {
   try {
-    const raw = localStorage.getItem(GLOBAL_ACCOUNTS_KEY);
+    let raw = localStorage.getItem(GLOBAL_ACCOUNTS_KEY);
+    if (!raw) {
+      raw = getTieredStorage('studyos_accounts_backup');
+    }
     if (raw) {
       const accounts = JSON.parse(raw);
       if (Array.isArray(accounts) && accounts.length > 0) {
@@ -331,6 +363,41 @@ export function loadStudentAccounts(): StudentAccount[] {
   } catch (e) {
     console.error('Failed to load student accounts', e);
   }
+
+  // Fallback: check if we have an auth snapshot in tiered storage / cookies
+  try {
+    const snapshotRaw = getTieredStorage('studyos_auth_snapshot');
+    if (snapshotRaw) {
+      const s = JSON.parse(snapshotRaw);
+      if (s.email && s.studentId && s.authProvider && s.authProvider !== 'guest') {
+        const restored: StudentAccount = {
+          id: s.studentId,
+          name: s.name || 'Student',
+          email: s.email,
+          avatar: s.avatar || '👨‍🎓',
+          createdAt: Date.now(),
+          selectedExam: s.selectedExam || 'CBSE_10',
+          preferredLanguage: s.preferredLanguage || 'hi',
+          goalCategory: s.goalCategory || 'school_board',
+          selectedBoard: s.selectedBoard || 'CBSE',
+          parentPhone: s.parentPhone || '',
+          parentName: s.parentName || '',
+          isGoalConfirmed: s.isGoalConfirmed ?? false,
+          autoSendReportsToParent: false,
+          parentReportFrequency: 'daily_summary',
+          authProvider: s.authProvider || 'google',
+          enableOfflineTTSLessons: true,
+          ttsSpeechRate: 1.0,
+          ttsAutoPlayLessons: false,
+        };
+        const alokDefault = DEFAULT_STUDENT_ACCOUNTS.find((a) => a.id === 'student_alok_kumar')!;
+        const list = [DEFAULT_STUDENT_ACCOUNTS[0], alokDefault, restored];
+        saveStudentAccounts(list);
+        return list;
+      }
+    }
+  } catch {}
+
   // Initialize default
   saveStudentAccounts(DEFAULT_STUDENT_ACCOUNTS);
   return DEFAULT_STUDENT_ACCOUNTS;
@@ -338,7 +405,9 @@ export function loadStudentAccounts(): StudentAccount[] {
 
 export function saveStudentAccounts(accounts: StudentAccount[]): void {
   try {
-    localStorage.setItem(GLOBAL_ACCOUNTS_KEY, JSON.stringify(accounts));
+    const serialized = JSON.stringify(accounts);
+    localStorage.setItem(GLOBAL_ACCOUNTS_KEY, serialized);
+    setTieredStorage('studyos_accounts_backup', serialized, 365);
     idbSet(GLOBAL_ACCOUNTS_KEY, accounts);
   } catch (e) {
     console.error('Failed to save student accounts', e);
@@ -346,7 +415,7 @@ export function saveStudentAccounts(accounts: StudentAccount[]): void {
 }
 
 export function getActiveStudentId(): string {
-  // 1. Check valid persistent 30-day session token first
+  // 1. Check valid persistent 30-day session token first (checks localStorage -> sessionStorage -> cookie)
   try {
     const sessionToken = getSessionToken();
     if (sessionToken && sessionToken.studentId && sessionToken.studentId !== 'guest_student') {
@@ -354,7 +423,29 @@ export function getActiveStudentId(): string {
     }
   } catch {}
 
-  // 2. Try tiered storage (localStorage -> document.cookie -> sessionStorage)
+  // 2. Try auth snapshot from tiered storage (persists in cookie, localStorage, sessionStorage)
+  try {
+    const snapshotRaw = getTieredStorage('studyos_auth_snapshot');
+    if (snapshotRaw) {
+      const s = JSON.parse(snapshotRaw);
+      if (s.studentId && s.studentId !== 'guest_student' && s.email && s.authProvider !== 'guest') {
+        return s.studentId;
+      }
+    }
+  } catch {}
+
+  // 3. Try active profile backup from tiered storage
+  try {
+    const backupRaw = getTieredStorage('studyos_active_profile_backup');
+    if (backupRaw) {
+      const p = JSON.parse(backupRaw);
+      if (p.id && p.id !== 'guest_student' && p.email && p.authProvider !== 'guest') {
+        return p.id;
+      }
+    }
+  } catch {}
+
+  // 4. Try tiered storage (localStorage -> document.cookie -> sessionStorage)
   try {
     const active = getTieredStorage(ACTIVE_STUDENT_ID_KEY);
     if (active && active !== 'guest_student') return active;
@@ -362,7 +453,7 @@ export function getActiveStudentId(): string {
     console.warn('[StorageService] Error reading tiered active student ID', e);
   }
 
-  // 3. Check if active student email cookie is present and match account
+  // 5. Check if active student email cookie is present and match account
   try {
     const cookieEmail = getCookie('studyos_active_email');
     if (cookieEmail) {
@@ -375,10 +466,10 @@ export function getActiveStudentId(): string {
     }
   } catch (e) {}
 
-  // 4. Fallback: If user has an authenticated account and did NOT explicitly click "Sign Out",
+  // 6. Fallback: If user has an authenticated account and did NOT explicitly click "Sign Out",
   // do NOT reset them to guest_student! Keep them logged in as their authenticated student account.
   try {
-    const explicitGuest = localStorage.getItem('studyos_explicit_guest');
+    const explicitGuest = localStorage.getItem('studyos_explicit_guest') || getCookie('studyos_explicit_guest');
     if (!explicitGuest) {
       const accounts = loadStudentAccounts();
       const authenticated = accounts.find((a) => a.authProvider && a.authProvider !== 'guest' && Boolean(a.email));
@@ -396,15 +487,22 @@ export function setActiveStudentId(studentId: string): void {
   try {
     if (studentId && studentId !== 'guest_student') {
       setTieredStorage(ACTIVE_STUDENT_ID_KEY, studentId, 365);
+      idbSet('studyos_active_student_id', studentId);
       try {
         localStorage.removeItem('studyos_explicit_guest');
+        deleteCookie('studyos_explicit_guest');
       } catch {}
     } else {
       removeTieredStorage(ACTIVE_STUDENT_ID_KEY);
       removeTieredStorage('studyos_active_email');
+      removeTieredStorage('studyos_auth_snapshot');
+      removeTieredStorage('studyos_active_profile_backup');
       clearSessionToken();
+      idbDelete('studyos_active_student_id');
+      idbDelete('studyos_active_profile_backup');
       try {
         localStorage.setItem('studyos_explicit_guest', 'true');
+        setCookie('studyos_explicit_guest', 'true', 365);
       } catch {}
     }
   } catch (e) {
@@ -764,22 +862,84 @@ export function deleteStudentAccount(studentId: string): void {
 
 export function loadUserProfile(studentId?: string): UserProfile {
   const activeId = studentId || getActiveStudentId();
+  
+  // 1. Check scoped key in localStorage
   try {
     const raw = localStorage.getItem(getScopedKey('profile', activeId));
     if (raw) {
       const p = JSON.parse(raw);
-      // If user is guest/not authenticated, ensure guest values are used
-      if (!p.authProvider || p.authProvider === 'guest') {
+      if (p.authProvider && p.authProvider !== 'guest' && p.email) {
+        return p;
+      }
+      if (activeId === 'guest_student') {
         p.name = 'Guest Learner';
         p.email = '';
+        return p;
       }
-      return p;
     }
   } catch (e) {
     console.error('Failed to load profile', e);
   }
 
-  const account = loadStudentAccounts().find((a) => a.id === activeId) || DEFAULT_STUDENT_ACCOUNTS[0];
+  // 2. Check tiered storage backup for active profile (persists in cookie, localStorage, sessionStorage)
+  try {
+    const backupRaw = getTieredStorage('studyos_active_profile_backup');
+    if (backupRaw) {
+      const p = JSON.parse(backupRaw);
+      if (p.authProvider && p.authProvider !== 'guest' && p.email) {
+        if (!activeId || activeId === 'guest_student' || p.id === activeId) {
+          try {
+            localStorage.setItem(getScopedKey('profile', p.id), JSON.stringify(p));
+          } catch {}
+          return p;
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 3. Check auth snapshot in tiered storage (cookie / localStorage / sessionStorage)
+  try {
+    const snapshotRaw = getTieredStorage('studyos_auth_snapshot');
+    if (snapshotRaw) {
+      const s = JSON.parse(snapshotRaw);
+      if (s.email && s.authProvider && s.authProvider !== 'guest') {
+        const targetId = s.studentId || activeId;
+        const reconstructed: UserProfile = {
+          id: targetId,
+          name: s.name || 'Student',
+          email: s.email,
+          preferredLanguage: s.preferredLanguage || 'hi',
+          selectedExam: s.selectedExam || 'CBSE_10',
+          targetScore: 90,
+          examDate: '2026-03-01',
+          streakDays: s.streakDays || 1,
+          lastActiveDate: s.lastActiveDate || new Date().toISOString().split('T')[0],
+          activeRole: 'student',
+          goalCategory: s.goalCategory || 'school_board',
+          selectedBoard: s.selectedBoard || 'CBSE',
+          selectedClass: s.selectedClass || '10',
+          parentPhone: s.parentPhone || '',
+          parentName: s.parentName || '',
+          isGoalConfirmed: s.isGoalConfirmed ?? false,
+          autoSendReportsToParent: false,
+          parentReportFrequency: 'daily_summary',
+          authProvider: s.authProvider,
+          avatar: s.avatar,
+          enableOfflineTTSLessons: true,
+          ttsSpeechRate: 1.0,
+          ttsAutoPlayLessons: false,
+        };
+        try {
+          localStorage.setItem(getScopedKey('profile', targetId), JSON.stringify(reconstructed));
+        } catch {}
+        return reconstructed;
+      }
+    }
+  } catch (e) {}
+
+  // 4. Try student account registry
+  const accounts = loadStudentAccounts();
+  const account = accounts.find((a) => a.id === activeId) || DEFAULT_STUDENT_ACCOUNTS[0];
 
   const isAuthenticated = account.authProvider && account.authProvider !== 'guest';
   const isAlok = activeId === 'student_alok_kumar' || (account.email && account.email.toLowerCase() === 'alokinfo30@gmail.com');
@@ -812,20 +972,48 @@ export function loadUserProfile(studentId?: string): UserProfile {
     ttsAutoPlayLessons: account.ttsAutoPlayLessons ?? false,
   };
 
-  saveUserProfile(defaultProfile, activeId);
+  // Only auto-save defaultProfile if activeId was already authenticated or Alok, do not overwrite if guest
+  if (isAuthenticated || isAlok) {
+    saveUserProfile(defaultProfile, activeId);
+  }
   return defaultProfile;
 }
 
 export function saveUserProfile(profile: UserProfile, studentId?: string): void {
   const activeId = studentId || profile.id || getActiveStudentId();
   try {
-    localStorage.setItem(getScopedKey('profile', activeId), JSON.stringify({ ...profile, id: activeId }));
+    const serialized = JSON.stringify({ ...profile, id: activeId });
+    localStorage.setItem(getScopedKey('profile', activeId), serialized);
     idbSet(getScopedKey('profile', activeId), profile);
 
-    // If student is authenticated, sync session cookie & backend session
+    // If student is authenticated, sync multi-tier storage, cookies, and remote session
     if (profile.email && profile.authProvider && profile.authProvider !== 'guest') {
-      setCookie('studyos_active_email', profile.email, 365);
-      setCookie(ACTIVE_STUDENT_ID_KEY, activeId, 365);
+      setTieredStorage('studyos_active_email', profile.email, 365);
+      setTieredStorage(ACTIVE_STUDENT_ID_KEY, activeId, 365);
+      setTieredStorage('studyos_active_profile_backup', serialized, 365);
+      
+      const compactSnapshot = JSON.stringify({
+        studentId: activeId,
+        email: profile.email,
+        name: profile.name,
+        authProvider: profile.authProvider,
+        avatar: profile.avatar || '',
+        parentPhone: profile.parentPhone || '',
+        parentName: profile.parentName || '',
+        isGoalConfirmed: profile.isGoalConfirmed ?? false,
+        goalCategory: profile.goalCategory,
+        selectedBoard: profile.selectedBoard,
+        selectedExam: profile.selectedExam,
+        selectedClass: profile.selectedClass,
+        preferredLanguage: profile.preferredLanguage,
+        lastActiveDate: profile.lastActiveDate,
+        streakDays: profile.streakDays,
+      });
+      setTieredStorage('studyos_auth_snapshot', compactSnapshot, 365);
+
+      // Tier-4 IndexedDB durable copies
+      idbSet('studyos_active_profile_backup', profile);
+      idbSet('studyos_active_student_id', activeId);
 
       fetch('/api/auth/session', {
         method: 'POST',

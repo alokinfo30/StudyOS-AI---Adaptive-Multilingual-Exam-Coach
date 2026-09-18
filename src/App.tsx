@@ -35,6 +35,7 @@ import {
   saveSessionToken,
   clearSessionToken,
   generateSessionToken,
+  idbGet,
 } from './services/storageService';
 import { calculateConfidenceWeightedAccuracy } from './utils/masteryCalculator';
 import { Navbar } from './components/layout/Navbar';
@@ -136,8 +137,54 @@ export default function App() {
 
   // Mobile & Cross-Device Session Auto-Recovery on Mount / Reload
   useEffect(() => {
+    // 1. Immediately hydrate from local multi-tier storage (cookie, localStorage, IndexedDB)
+    // This is critical for mobile browsers that reload or recycle tabs when hosted on Netlify or offline
+    const hydrateLocalSession = async () => {
+      try {
+        const resolvedId = getActiveStudentId();
+        let resolvedProfile = loadUserProfile(resolvedId);
+
+        // If local profile is guest or unauthenticated, check Tier-4 IndexedDB
+        if (!resolvedProfile.email || resolvedProfile.authProvider === 'guest') {
+          const idbStudentId = await idbGet<string>('studyos_active_student_id');
+          const idbProfile = await idbGet<UserProfile>('studyos_active_profile_backup');
+          if (idbProfile && idbProfile.email && idbProfile.authProvider !== 'guest') {
+            resolvedProfile = idbProfile;
+          } else if (idbStudentId && idbStudentId !== 'guest_student') {
+            resolvedProfile = loadUserProfile(idbStudentId);
+          }
+        }
+
+        if (resolvedProfile && resolvedProfile.email && resolvedProfile.authProvider !== 'guest') {
+          const targetId = resolvedProfile.id || resolvedId;
+          setActiveStudentId(targetId);
+          setActiveId(targetId);
+          setProfile(resolvedProfile);
+          setMasteries(loadConceptMasteries(targetId));
+          setDna(loadStudentDNA(targetId));
+
+          const savedTab = getTieredStorage('studyos_active_tab');
+          if (savedTab && savedTab !== 'home') {
+            setCurrentTab(savedTab);
+          } else if (resolvedProfile.isGoalConfirmed) {
+            setCurrentTab((curr) => (curr === 'home' ? 'mission' : curr));
+          }
+        }
+      } catch (err) {
+        console.warn('[SessionRecovery] Local multi-tier hydration fallback', err);
+      }
+    };
+
+    hydrateLocalSession();
+
+    // 2. Safely check server session endpoint (safe on both custom backend and static hosting like Netlify)
     fetch('/api/auth/session')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) return null;
+        return res.json();
+      })
       .then((data) => {
         if (data?.authenticated && data?.session) {
           const session = data.session;
@@ -231,6 +278,9 @@ export default function App() {
       try {
         lastPollTime = Date.now();
         const res = await fetch('/api/auth/session');
+        if (!res.ok) return;
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) return;
         const data = await res.json();
 
         if (data?.authenticated && data?.session) {
@@ -438,7 +488,8 @@ export default function App() {
       email: account.email,
       studentId: account.id,
       createdAt: Date.now(),
-      expiresAt: Date.now() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000),
+      // Continuous login persistence: 30 days if Remember Me is active, minimum 7 days otherwise
+      expiresAt: Date.now() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000),
       rememberMe,
     });
 

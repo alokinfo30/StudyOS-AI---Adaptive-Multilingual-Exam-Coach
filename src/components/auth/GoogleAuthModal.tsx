@@ -199,13 +199,13 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
       const targetStudentId = existingMatch ? existingMatch.id : `student_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const sessionToken = generateSessionToken(cleanEmail);
 
-      // Persist session token in localStorage for 30 days if Remember Me is checked
+      // Persist session token for 30 days if Remember Me is checked, minimum 7 days otherwise
       saveSessionToken({
         token: sessionToken,
         email: cleanEmail,
         studentId: targetStudentId,
         createdAt: Date.now(),
-        expiresAt: Date.now() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000),
+        expiresAt: Date.now() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000),
         rememberMe,
       });
 
