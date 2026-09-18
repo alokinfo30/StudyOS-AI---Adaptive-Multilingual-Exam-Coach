@@ -80,7 +80,6 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
   if (!isOpen) return null;
 
   const currentCode = digits.join('');
-  const hiddenInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleApplyCodeAndVerify = (codeToUse?: string) => {
     const finalCode = codeToUse || expectedCode;
@@ -327,14 +326,18 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
                 <div className="flex items-start gap-1.5 text-emerald-400">
                   <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   <span>
-                    Dispatched via SMTP to <strong>{email}</strong>. If delayed or in Spam, use the active code above.
+                    {dispatchMessage || (
+                      <>Dispatched via SMTP to <strong>{email}</strong>. If delayed or in Spam, use the active code above.</>
+                    )}
                   </span>
                 </div>
               ) : (
                 <div className="flex items-start gap-1.5 text-zinc-400">
                   <Shield className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
                   <span>
-                    Live authentication session active for <strong className="text-zinc-200">{email}</strong>. Click <strong className="text-emerald-400">Verify Now</strong> or enter the code below to complete sign in.
+                    {dispatchMessage || (
+                      <>Live authentication session active for <strong className="text-zinc-200">{email}</strong>. Click <strong className="text-emerald-400">Verify Now</strong> or enter the code below to complete sign in.</>
+                    )}
                   </span>
                 </div>
               )}
@@ -366,22 +369,8 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
               Enter 6-Digit Verification Code
             </label>
 
-            {/* 6 Digit Input Boxes with unified mobile input */}
-            <div className="relative flex items-center justify-center gap-2 sm:gap-2.5">
-              {/* Invisible full input overlay for unified mobile typing & autofill */}
-              <input
-                ref={hiddenInputRef}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={currentCode}
-                onChange={(e) => handleUnifiedInputChange(e.target.value)}
-                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                aria-label="6-Digit Verification Code"
-              />
-
+            {/* 6 Digit Input Boxes */}
+            <div className="flex items-center justify-center gap-2 sm:gap-2.5">
               {digits.map((digit, idx) => (
                 <input
                   key={idx}
@@ -390,6 +379,7 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
                   }}
                   type="text"
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength={1}
                   value={digit}
                   disabled={isLoading || isVerifying}
@@ -401,8 +391,23 @@ export const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({
                       ? 'border-amber-500 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/50'
                       : 'border-zinc-800 text-zinc-200 hover:border-zinc-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40'
                   }`}
+                  aria-label={`Digit ${idx + 1}`}
                 />
               ))}
+            </div>
+
+            {/* Direct fallback input for mobile virtual keyboards */}
+            <div className="mt-2.5">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                value={currentCode}
+                onChange={(e) => handleUnifiedInputChange(e.target.value)}
+                placeholder="Or type/paste full 6-digit code here..."
+                className="w-full text-center text-xs font-mono py-2 px-3 rounded-lg bg-zinc-950/80 border border-zinc-800/80 text-zinc-300 placeholder:text-zinc-600 focus:border-amber-500/60 focus:outline-none transition-all"
+              />
             </div>
           </div>
 

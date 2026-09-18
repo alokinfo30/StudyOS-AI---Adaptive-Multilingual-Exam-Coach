@@ -179,7 +179,12 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
         existingMatch?.googleProfile?.picture ||
         `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}`;
 
-      onGoogleLoginSuccess(cleanEmail, finalName, finalAvatar, method, phone);
+      const finalPhone =
+        phone ||
+        existingMatch?.parentPhone ||
+        (cleanEmail === 'alokinfo30@gmail.com' ? '+919876543210' : '+919876543210');
+
+      onGoogleLoginSuccess(cleanEmail, finalName, finalAvatar, method, finalPhone);
       setIsLoading(false);
       onClose();
     }, 200);

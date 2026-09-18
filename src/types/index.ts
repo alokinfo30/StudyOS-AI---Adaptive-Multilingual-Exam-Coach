@@ -414,6 +414,8 @@ export interface StudentAccount {
     picture?: string;
     sub?: string;
     emailVerified?: boolean;
+    email?: string;
+    name?: string;
   };
 }
 
@@ -453,6 +455,8 @@ export interface UserProfile {
     picture?: string;
     sub?: string;
     emailVerified?: boolean;
+    email?: string;
+    name?: string;
   };
 }
 

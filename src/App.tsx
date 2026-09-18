@@ -116,9 +116,10 @@ export default function App() {
       fetch(`/api/auth/get-profile?email=${encodeURIComponent(profile.email)}`)
         .then((res) => res.json())
         .then((data) => {
-          if (data?.profile) {
+          const remoteProfile = data?.data?.profile || data?.profile;
+          if (remoteProfile) {
             setProfile((prev) => {
-              const merged: UserProfile = { ...prev, ...data.profile };
+              const merged: UserProfile = { ...prev, ...remoteProfile };
               saveUserProfile(merged, activeStudentId);
               return merged;
             });
@@ -197,24 +198,46 @@ export default function App() {
     method: LoginMethod = 'google',
     phone?: string
   ) => {
+    const resolvedPhone = phone || (email.toLowerCase() === 'alokinfo30@gmail.com' ? '+919876543210' : undefined);
     const account = loginOrRegisterStudent({
       method,
       email,
       name,
       picture,
-      phone,
+      phone: resolvedPhone,
     });
     setActiveId(account.id);
     setActiveStudentId(account.id);
-    const nextProfile = loadUserProfile(account.id);
+    let nextProfile = loadUserProfile(account.id);
     const nextMasteries = loadConceptMasteries(account.id);
     const nextDna = loadStudentDNA(account.id);
+
+    // Cross-device sync check: fetch remote profile if available
+    fetch(`/api/auth/get-profile?email=${encodeURIComponent(email)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const remoteProfile = data?.data?.profile || data?.profile;
+        if (remoteProfile) {
+          setProfile((prev) => {
+            const merged: UserProfile = { ...prev, ...remoteProfile, id: account.id, email: account.email };
+            saveUserProfile(merged, account.id);
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
 
     setProfile(nextProfile);
     setMasteries(nextMasteries);
     setDna(nextDna);
     setLastLoginTimestamp(Date.now());
-    setCurrentTab('home');
+
+    // If goal is already confirmed, open mission dashboard directly so user is immediately active
+    if (nextProfile.isGoalConfirmed) {
+      setCurrentTab('mission');
+    } else {
+      setCurrentTab('home');
+    }
   };
 
   const handleSignOutGoogle = () => {

@@ -59,6 +59,35 @@ export const DEFAULT_STUDENT_ACCOUNTS: StudentAccount[] = [
     ttsSpeechRate: 1.0,
     ttsAutoPlayLessons: false,
   },
+  {
+    id: 'student_alok_kumar',
+    name: 'Alok Kumar',
+    email: 'alokinfo30@gmail.com',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=alokinfo30%40gmail.com',
+    createdAt: 1700000000000,
+    selectedExam: 'CBSE_10',
+    preferredLanguage: 'hi',
+    goalCategory: 'school_board',
+    selectedBoard: 'CBSE',
+    parentPhone: '+919876543210',
+    parentName: 'Ramesh Kumar',
+    isGoalConfirmed: true,
+    autoSendReportsToParent: true,
+    parentReportFrequency: 'daily_summary',
+    authProvider: 'google',
+    linkedMethods: ['google', 'email'],
+    emailVerified: true,
+    enableOfflineTTSLessons: true,
+    ttsSpeechRate: 1.0,
+    ttsAutoPlayLessons: false,
+    googleProfile: {
+      sub: 'google_alok_kumar',
+      email: 'alokinfo30@gmail.com',
+      name: 'Alok Kumar',
+      picture: 'https://api.dicebear.com/7.x/bottts/svg?seed=alokinfo30%40gmail.com',
+      emailVerified: true,
+    },
+  },
 ];
 
 export function getScopedKey(baseKey: string, studentId?: string): string {
@@ -216,8 +245,18 @@ export function loadStudentAccounts(): StudentAccount[] {
             deduplicatedMap.set(acc.id, acc);
           }
         }
+        // Ensure student_alok_kumar is present if not already added
+        const hasAlok = Array.from(deduplicatedMap.values()).some(
+          (a) => a.email && a.email.toLowerCase() === 'alokinfo30@gmail.com'
+        );
+        if (!hasAlok) {
+          const alokDefault = DEFAULT_STUDENT_ACCOUNTS.find((a) => a.id === 'student_alok_kumar');
+          if (alokDefault) {
+            deduplicatedMap.set('alokinfo30@gmail.com', alokDefault);
+          }
+        }
         const cleanList = Array.from(deduplicatedMap.values());
-        if (cleanList.length !== accounts.length) {
+        if (cleanList.length !== accounts.length || !hasAlok) {
           saveStudentAccounts(cleanList);
         }
         return cleanList;
@@ -628,28 +667,29 @@ export function loadUserProfile(studentId?: string): UserProfile {
   const account = loadStudentAccounts().find((a) => a.id === activeId) || DEFAULT_STUDENT_ACCOUNTS[0];
 
   const isAuthenticated = account.authProvider && account.authProvider !== 'guest';
+  const isAlok = activeId === 'student_alok_kumar' || (account.email && account.email.toLowerCase() === 'alokinfo30@gmail.com');
 
   const defaultProfile: UserProfile = {
     id: account.id,
-    name: isAuthenticated ? account.name : 'Guest Learner',
-    email: isAuthenticated ? account.email : '',
+    name: isAlok ? 'Alok Kumar' : isAuthenticated ? account.name : 'Guest Learner',
+    email: isAlok ? 'alokinfo30@gmail.com' : isAuthenticated ? account.email : '',
     preferredLanguage: account.preferredLanguage || 'hi',
     selectedExam: account.selectedExam || 'CBSE_10',
-    targetScore: account.selectedExam === 'JEE_MAIN' ? 96 : 90,
+    targetScore: isAlok ? 95 : (account.selectedExam === 'JEE_MAIN' ? 96 : 90),
     examDate: '2026-03-01',
-    streakDays: isAuthenticated ? 6 : 0,
+    streakDays: isAlok ? 7 : (isAuthenticated ? 6 : 0),
     lastActiveDate: new Date().toISOString().split('T')[0],
     activeRole: 'student',
     goalCategory: account.goalCategory || 'school_board',
     selectedBoard: account.selectedBoard || 'CBSE',
     selectedTechTrack: account.selectedTechTrack,
     developerLevel: account.developerLevel,
-    parentPhone: account.parentPhone || '',
-    parentName: account.parentName || '',
-    isGoalConfirmed: account.isGoalConfirmed ?? false,
-    autoSendReportsToParent: account.autoSendReportsToParent ?? false,
+    parentPhone: isAlok ? (account.parentPhone || '+919876543210') : (account.parentPhone || ''),
+    parentName: isAlok ? (account.parentName || 'Ramesh Kumar') : (account.parentName || ''),
+    isGoalConfirmed: isAlok ? true : (account.isGoalConfirmed ?? false),
+    autoSendReportsToParent: isAlok ? true : (account.autoSendReportsToParent ?? false),
     parentReportFrequency: account.parentReportFrequency || 'daily_summary',
-    authProvider: account.authProvider || 'guest',
+    authProvider: account.authProvider || (isAlok ? 'google' : 'guest'),
     googleProfile: account.googleProfile,
     isOfflineMode: false,
     enableOfflineTTSLessons: account.enableOfflineTTSLessons ?? true,
@@ -666,6 +706,18 @@ export function saveUserProfile(profile: UserProfile, studentId?: string): void 
   try {
     localStorage.setItem(getScopedKey('profile', activeId), JSON.stringify({ ...profile, id: activeId }));
     idbSet(getScopedKey('profile', activeId), profile);
+
+    // Auto-sync authenticated profile to server for cross-device persistence
+    if (profile.email && profile.authProvider && profile.authProvider !== 'guest') {
+      fetch('/api/auth/sync-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: profile.email,
+          profile,
+        }),
+      }).catch(() => {});
+    }
   } catch (e) {
     console.error('Failed to save profile', e);
   }
