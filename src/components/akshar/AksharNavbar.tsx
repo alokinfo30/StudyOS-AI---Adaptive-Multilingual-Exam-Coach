@@ -12,14 +12,17 @@ import {
   Sparkles,
   School,
   Database,
-  ArrowLeft
+  ArrowLeft,
+  Activity,
+  Presentation,
+  Compass
 } from 'lucide-react';
-import { Dialect } from '../../types/akshar';
+import { Dialect, AksharTabType } from '../../types/akshar';
 import { DIALECTS_LIST } from '../../data/aksharData';
 
 interface AksharNavbarProps {
-  activeTab: 'snap' | 'oral' | 'tarl' | 'readers' | 'sync';
-  onSelectTab: (tab: 'snap' | 'oral' | 'tarl' | 'readers' | 'sync') => void;
+  activeTab: AksharTabType;
+  onSelectTab: (tab: AksharTabType) => void;
   selectedDialect: Dialect;
   onSelectDialect: (d: Dialect) => void;
   isOnline: boolean;
@@ -239,6 +242,30 @@ export const AksharNavbar: React.FC<AksharNavbarProps> = ({
           </button>
 
           <button
+            onClick={() => onSelectTab('heatmap')}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              activeTab === 'heatmap'
+                ? 'bg-amber-500 text-zinc-950 font-semibold shadow-md shadow-amber-500/20'
+                : 'text-zinc-300 hover:bg-zinc-800/80 hover:text-white'
+            }`}
+          >
+            <Activity className="h-3.5 w-3.5" />
+            <span>निपुण हीटमैप (FLN)</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('journey')}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              activeTab === 'journey'
+                ? 'bg-amber-500 text-zinc-950 font-semibold shadow-md shadow-amber-500/20'
+                : 'text-zinc-300 hover:bg-zinc-800/80 hover:text-white'
+            }`}
+          >
+            <Compass className="h-3.5 w-3.5" />
+            <span>दैनिक कक्षा (4 Stages)</span>
+          </button>
+
+          <button
             onClick={() => onSelectTab('readers')}
             className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${
               activeTab === 'readers'
@@ -248,6 +275,18 @@ export const AksharNavbar: React.FC<AksharNavbarProps> = ({
           >
             <BookOpen className="h-3.5 w-3.5" />
             <span>पठन कार्ड (Readers)</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('deck')}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              activeTab === 'deck'
+                ? 'bg-amber-500 text-zinc-950 font-semibold shadow-md shadow-amber-500/20'
+                : 'text-zinc-300 hover:bg-zinc-800/80 hover:text-white'
+            }`}
+          >
+            <Presentation className="h-3.5 w-3.5" />
+            <span>प्रस्तुति स्लाइड (Deck 0-9)</span>
           </button>
 
           <button

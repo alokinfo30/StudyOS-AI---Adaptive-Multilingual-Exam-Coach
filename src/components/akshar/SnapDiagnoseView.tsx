@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Dialect, GradeLevel, SubjectTrack, SlateDiagnosis, BoundingBoxError } from '../../types/akshar';
 import { SAMPLE_SLATES, SampleSlate } from '../../data/aksharData';
+import { KinestheticRemediationModal } from './KinestheticRemediationModal';
 
 interface SnapDiagnoseViewProps {
   currentDialect: Dialect;
@@ -46,6 +47,7 @@ export const SnapDiagnoseView: React.FC<SnapDiagnoseViewProps> = ({
   const [activeDiagnosis, setActiveDiagnosis] = useState<SlateDiagnosis | null>(null);
   const [activeBoxIndex, setActiveBoxIndex] = useState<number | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [isDrillOpen, setIsDrillOpen] = useState<boolean>(false);
 
   // Canvas drawing ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -638,12 +640,21 @@ export const SnapDiagnoseView: React.FC<SnapDiagnoseViewProps> = ({
               </div>
 
               {/* 1-Minute Offline Remediation Tip */}
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
-                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
-                  <Clock className="h-4 w-4 text-emerald-400" />
-                  <span>शिक्षक हेतु १-मिनट का त्वरित उपचार (1-Min Physical Remediation):</span>
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
+                    <Clock className="h-4 w-4 text-emerald-400" />
+                    <span>शिक्षक हेतु १-मिनट का त्वरित उपचार (1-Min Physical Remediation):</span>
+                  </div>
+                  <button
+                    onClick={() => setIsDrillOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-500 text-zinc-950 font-bold px-2.5 py-1 text-[11px] hover:bg-emerald-400 transition"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>शारीरिक ड्रिल दिखाएं (Open Drill)</span>
+                  </button>
                 </div>
-                <p className="mt-1.5 text-xs text-zinc-200 leading-relaxed font-medium">
+                <p className="text-xs text-zinc-200 leading-relaxed font-medium">
                   {activeDiagnosis.remediationTip1Min}
                 </p>
               </div>
@@ -713,6 +724,22 @@ export const SnapDiagnoseView: React.FC<SnapDiagnoseViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Kinesthetic Remediation Modal */}
+      {activeDiagnosis && (
+        <KinestheticRemediationModal
+          isOpen={isDrillOpen}
+          onClose={() => setIsDrillOpen(false)}
+          studentName={activeDiagnosis.childName}
+          drillType={
+            activeDiagnosis.errorSubtype.includes('व ➜ ब') || activeDiagnosis.detectedText.includes('व') || activeDiagnosis.detectedText.includes('ब')
+              ? 'letter_split'
+              : activeDiagnosis.errorSubtype.includes('हासिल') || activeDiagnosis.subject === 'math_numeracy'
+              ? 'bead_frame'
+              : 'latin_mirror'
+          }
+        />
+      )}
     </div>
   );
 };

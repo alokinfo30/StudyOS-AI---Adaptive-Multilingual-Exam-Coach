@@ -99,3 +99,48 @@ export interface DecodableStory {
   }[];
   comprehensionQuestions: string[];
 }
+
+export type AksharTabType = 'snap' | 'oral' | 'tarl' | 'heatmap' | 'journey' | 'readers' | 'deck' | 'sync';
+
+export type NipunIndicatorId = 
+  | 'H1_LETTER_SOUND' 
+  | 'H2_MATRA_BLENDS' 
+  | 'H3_FLUENT_READING' 
+  | 'M1_PLACE_VALUE' 
+  | 'M2_REGROUP_ADD' 
+  | 'M3_STORY_MATH';
+
+export interface NipunIndicator {
+  id: NipunIndicatorId;
+  code: string;
+  titleHindi: string;
+  titleEnglish: string;
+  domain: 'literacy' | 'numeracy';
+  targetGrade: GradeLevel;
+  benchmarkDescription: string;
+}
+
+export type CompetencyLevel = 'proficient' | 'developing' | 'intervention';
+
+export interface StudentCompetencyRecord {
+  studentId: string;
+  studentName: string;
+  rollNumber: number;
+  grade: GradeLevel;
+  dialect: Dialect;
+  currentBand: TaRLBand;
+  competencies: Record<NipunIndicatorId, CompetencyLevel>;
+  primaryMisconception?: string;
+  actionableTip?: string;
+}
+
+export interface DailyJourneyStep {
+  stepNumber: 1 | 2 | 3 | 4;
+  title: string;
+  titleHindi: string;
+  durationLabel: string;
+  timeEstimateSeconds: number;
+  icon: string;
+  description: string;
+  hardwareConstraint: string;
+}

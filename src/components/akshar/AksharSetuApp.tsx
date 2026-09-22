@@ -5,7 +5,10 @@ import { OralBridgeView } from './OralBridgeView';
 import { TaRLGroupingView } from './TaRLGroupingView';
 import { DecodableReadersView } from './DecodableReadersView';
 import { EdgeSyncCenter } from './EdgeSyncCenter';
-import { Dialect, SlateDiagnosis, StudentProfile, TaRLBand } from '../../types/akshar';
+import { NipunCompetencyHeatmap } from './NipunCompetencyHeatmap';
+import { DailyClassroomJourneyRunner } from './DailyClassroomJourneyRunner';
+import { AksharPitchDeckView } from './AksharPitchDeckView';
+import { Dialect, SlateDiagnosis, StudentProfile, TaRLBand, AksharTabType } from '../../types/akshar';
 import { INITIAL_STUDENTS_ROSTER, SAMPLE_SLATES } from '../../data/aksharData';
 
 interface AksharSetuAppProps {
@@ -14,7 +17,7 @@ interface AksharSetuAppProps {
 
 export const AksharSetuApp: React.FC<AksharSetuAppProps> = ({ onBackToStudyOS }) => {
   // Navigation & Dialect State
-  const [activeTab, setActiveTab] = useState<'snap' | 'oral' | 'tarl' | 'readers' | 'sync'>('snap');
+  const [activeTab, setActiveTab] = useState<AksharTabType>('snap');
   const [selectedDialect, setSelectedDialect] = useState<Dialect>('bhojpuri');
   
   // High-contrast Outdoor Chalkboard Mode
@@ -202,11 +205,27 @@ export const AksharSetuApp: React.FC<AksharSetuAppProps> = ({ onBackToStudyOS })
           />
         )}
 
+        {activeTab === 'heatmap' && (
+          <NipunCompetencyHeatmap />
+        )}
+
+        {activeTab === 'journey' && (
+          <DailyClassroomJourneyRunner
+            onJumpToTab={(tab) => setActiveTab(tab)}
+          />
+        )}
+
         {activeTab === 'readers' && (
           <DecodableReadersView
             currentDialect={selectedDialect}
             chalkMode={chalkMode}
             speechRate={speechRate}
+          />
+        )}
+
+        {activeTab === 'deck' && (
+          <AksharPitchDeckView
+            onJumpToTab={(tab) => setActiveTab(tab)}
           />
         )}
 
