@@ -234,7 +234,6 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
 
     const resolvedName = name.trim() || (matchedExistingAccount ? matchedExistingAccount.name : 'Student');
 
-    let generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
     try {
       const res = await fetch('/api/auth/send-verification-code', {
         method: 'POST',
@@ -242,17 +241,13 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
         body: JSON.stringify({ email: cleanEmail, studentName: resolvedName }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.code) {
-        generatedCode = data.code;
-      }
       setIsEmailDelivered(Boolean(data.emailDelivered));
-      setDispatchMessage(data.message || '');
+      setDispatchMessage(data.message || `Verification code sent to your Gmail (${cleanEmail}).`);
     } catch {
       setIsEmailDelivered(false);
-      setDispatchMessage('Direct verification ready.');
+      setDispatchMessage(`Verification code sent to ${cleanEmail}.`);
     }
 
-    setMiddlewareVerificationCode(generatedCode);
     setPendingCredentials({
       method,
       email: cleanEmail,
@@ -284,22 +279,6 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
     setPendingCredentials(null);
   };
 
-  const handleInstantVerifyGoogle = () => {
-    if (!pendingCredentials) return;
-    if (onVerificationStateChange) {
-      onVerificationStateChange(false);
-    }
-    setIsEmailVerificationModalOpen(false);
-    handleExecuteLogin(
-      'google',
-      pendingCredentials.email,
-      pendingCredentials.name,
-      pendingCredentials.picture,
-      pendingCredentials.phone
-    );
-    setPendingCredentials(null);
-  };
-
   const handleMiddlewareClose = () => {
     if (onVerificationStateChange) {
       onVerificationStateChange(false);
@@ -320,14 +299,10 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.code) {
-        setMiddlewareVerificationCode(data.code);
-        setIsEmailDelivered(Boolean(data.emailDelivered));
-        setDispatchMessage(data.message || '');
-      }
+      setIsEmailDelivered(Boolean(data.emailDelivered));
+      setDispatchMessage(data.message || `Fresh verification code dispatched to ${pendingCredentials.email}.`);
     } catch {
-      const freshCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setMiddlewareVerificationCode(freshCode);
+      setIsEmailDelivered(false);
     }
   };
 
@@ -434,12 +409,10 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
         onClose={handleMiddlewareClose}
         email={pendingCredentials?.email || emailInput}
         studentName={pendingCredentials?.name || nameInput}
-        expectedCode={middlewareVerificationCode}
         emailDelivered={isEmailDelivered}
         dispatchMessage={dispatchMessage}
         onVerificationSuccess={handleMiddlewareVerificationSuccess}
         onResendCode={handleMiddlewareResend}
-        onInstantVerifyGoogle={handleInstantVerifyGoogle}
         isLoading={isLoading}
       />
     );
@@ -540,35 +513,37 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
               </button>
               <button
                 type="button"
+                id="auth-modal-logout-btn"
                 onClick={() => {
                   onSignOut();
                   onClose();
                 }}
                 className="py-2.5 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                title="Logout (Invalidate backend session cookie and clear local storage tokens)"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out Completely</span>
+                <span>Logout (Wipe Session)</span>
               </button>
             </div>
           </div>
         ) : (
           /* VIEW 2: LOGIN / SIGN UP VIEW */
           <div className="space-y-4">
-            {/* Quick 1-Tap Instant Sign-In for Mobile & Desktop */}
+            {/* Quick Verification Code Dispatch for Demo/Mobile */}
             <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/40 shadow-md space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Quick 1-Tap Login (Mobile & Desktop)</span>
+                  <span>Gmail 6-Digit Code Login</span>
                 </div>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
-                  Instant
+                  10-Min Expiry
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => {
-                  handleExecuteLogin(
+                  triggerEmailVerificationMiddleware(
                     'google',
                     'alokinfo30@gmail.com',
                     'Alok Kumar',
@@ -578,7 +553,7 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                 }}
                 className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-zinc-950 font-bold text-xs transition-all shadow flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>⚡ Sign In as Alok Kumar (alokinfo30@gmail.com)</span>
+                <span>⚡ Send Verification Code to alokinfo30@gmail.com</span>
               </button>
             </div>
 
@@ -749,7 +724,7 @@ export const GoogleAuthModal: React.FC<GoogleAuthModalProps> = ({
                         (matchedExistingAccount ? matchedExistingAccount.name : '') ||
                         cleanEmail.split('@')[0].replace(/[._]/g, ' ') ||
                         'Alok Kumar';
-                      handleExecuteLogin('google', cleanEmail, resolvedName);
+                      triggerEmailVerificationMiddleware('google', cleanEmail, resolvedName);
                     }}
                     className="w-full py-3 px-4 rounded-xl bg-white hover:bg-zinc-100 active:scale-[0.99] text-zinc-900 font-bold text-xs transition-all shadow-lg flex items-center justify-center gap-2.5 cursor-pointer border border-zinc-300"
                   >

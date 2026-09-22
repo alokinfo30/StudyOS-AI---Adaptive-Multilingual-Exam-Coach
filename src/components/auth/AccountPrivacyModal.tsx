@@ -311,14 +311,16 @@ export const AccountPrivacyModal: React.FC<AccountPrivacyModalProps> = ({
             <div className="pt-3 border-t border-zinc-800/80">
               <button
                 type="button"
+                id="account-privacy-logout-btn"
                 onClick={() => {
                   onClose();
                   onSignOut();
                 }}
                 className="w-full py-2.5 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                title="Logout (Invalidate backend session cookie and clear local storage tokens)"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Sign Out of Active Student Session (Wipe from DOM)</span>
+                <span>Logout (Invalidate Session & Clear Storage Tokens)</span>
               </button>
             </div>
           )}

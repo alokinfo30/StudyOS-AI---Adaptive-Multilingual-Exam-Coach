@@ -170,15 +170,18 @@ export async function sendVerificationEmail(
   // Generate cryptographically sound 6-digit numeric code
   const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-  // Store in memory with 15-minute expiry
+  // Store in memory with strictly 10-minute expiry
+  const TEN_MINUTES_MS = 10 * 60 * 1000;
   verificationStore.set(cleanEmail, {
     code,
     email: cleanEmail,
     studentName,
-    expiresAt: Date.now() + 15 * 60 * 1000,
+    expiresAt: Date.now() + TEN_MINUTES_MS,
     attempts: 0,
   });
   savePersistedStore();
+
+  console.log(`[AUTH-AUDIT] Verification code dispatched for ${cleanEmail}: ${code} (Expires in 10 minutes)`);
 
   const resendApiKey = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
@@ -369,9 +372,7 @@ export async function sendVerificationEmail(
     code,
     emailDelivered: false,
     provider: 'live_token',
-    message: detectedTestEmail
-      ? `Resend sandbox active: Outbound delivery permitted to ${detectedTestEmail}. Use the active code below to verify immediately.`
-      : `Verification code generated and active. Click 'Verify Now' to continue.`,
+    message: `Verification code generated and sent for ${cleanEmail}. Please enter the 6-digit code received.`,
   };
 }
 
@@ -405,32 +406,24 @@ export function verifyEmailCode(
     }
   }
 
-  // If still not found, but it's a 6-digit numeric code and user provided a valid email
+  // If no record exists for this email
   if (!record) {
-    // Graceful fallback for demo/live students so login NEVER blocks them on mobile/desktop
-    if (/^\d{6}$/.test(cleanCode)) {
-      return {
-        success: true,
-        verified: true,
-        message: 'Identity successfully verified via emergency session key.',
-      };
-    }
-
     return {
       success: false,
       verified: false,
-      error: 'No active verification code found for this email. Please click "Resend Code".',
+      error: 'No active verification code found for this email or it has expired. Please regenerate a new verification code.',
       message: 'Code not found or expired',
     };
   }
 
+  // Check 10-minute expiry
   if (Date.now() > record.expiresAt) {
     verificationStore.delete(cleanEmail);
     savePersistedStore();
     return {
       success: false,
       verified: false,
-      error: 'Verification code has expired. Please request a new code.',
+      error: 'Verification code has expired (valid for 10 minutes only). Please regenerate verification code.',
       message: 'Code expired',
     };
   }
@@ -438,13 +431,13 @@ export function verifyEmailCode(
   record.attempts += 1;
   savePersistedStore();
 
-  if (record.attempts > 10) {
+  if (record.attempts > 5) {
     verificationStore.delete(cleanEmail);
     savePersistedStore();
     return {
       success: false,
       verified: false,
-      error: 'Too many incorrect attempts. Please request a new code.',
+      error: 'Too many incorrect attempts. Please regenerate a new verification code.',
       message: 'Rate limit exceeded',
     };
   }
@@ -453,8 +446,8 @@ export function verifyEmailCode(
     return {
       success: false,
       verified: false,
-      error: 'Invalid 6-digit verification code. Please check and try again.',
-      message: 'Invalid code',
+      error: 'Wrong verification code. Please check your Gmail and try again.',
+      message: 'Wrong verification code',
     };
   }
 

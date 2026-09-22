@@ -10,6 +10,7 @@ import {
   Lock,
   LogOut,
   User,
+  Sparkles,
 } from 'lucide-react';
 import {
   LanguageCode,
@@ -220,8 +221,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* Zone 3: Header Controls (Offline Mode + Role Switcher + Mobile Menu) */}
+            {/* Zone 3: Header Controls (Offline Mode + AksharSetu Addon + Role Switcher + Mobile Menu) */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* AksharSetu Add-on Button */}
+            <button
+              type="button"
+              id="nav-aksharsetu-btn"
+              onClick={() => onSelectTab('aksharsetu')}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border min-h-[34px] cursor-pointer ${
+                currentTab === 'aksharsetu'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-zinc-950 border-amber-400 font-bold shadow-md shadow-orange-500/20'
+                  : 'bg-orange-500/10 text-orange-300 border-orange-500/30 hover:bg-orange-500/20 hover:border-orange-500/50'
+              }`}
+              title="Open AksharSetu (अक्षरसेतु) Multi-Dialect FLN Assistant (Add-on)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+              <span className="font-serif">अक्षरसेतु</span>
+              <span className="hidden sm:inline text-[10px] bg-orange-500/20 text-orange-300 px-1.5 py-0.5 rounded border border-orange-500/30 uppercase font-sans font-bold">
+                Add-on
+              </span>
+            </button>
+
             {/* Offline Mode Indicator & Toggle */}
             <button
               onClick={onToggleOfflineMode}
@@ -290,12 +310,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 {onSignOut && (
                   <button
                     type="button"
+                    id="nav-logout-btn"
                     onClick={onSignOut}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold transition-all cursor-pointer"
-                    title="Sign Out (Wipe active student session from DOM immediately)"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-semibold transition-all cursor-pointer"
+                    title="Logout (Invalidate backend session cookie and clear local storage tokens)"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Sign Out</span>
+                    <span>Logout</span>
                   </button>
                 )}
               </div>
@@ -317,6 +338,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Mobile Horizontal Navigation Scroller (Visible when logged in) */}
         {isLoggedIn && (
           <div className="flex lg:hidden items-center justify-start gap-1 px-2 py-1.5 border-t border-zinc-800/80 bg-zinc-950 overflow-x-auto no-scrollbar">
+            <button
+              key="mobile-aksharsetu"
+              onClick={() => handleNavClick('aksharsetu')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap min-h-[32px] ${
+                currentTab === 'aksharsetu'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-zinc-950 font-bold'
+                  : 'bg-orange-500/10 text-orange-300 border border-orange-500/30'
+              }`}
+            >
+              <Sparkles className="w-3 h-3 text-orange-400" />
+              <span>अक्षरसेतु FLN</span>
+            </button>
             {navItems.map((item) => {
               const isActive = currentTab === item.id;
               return (

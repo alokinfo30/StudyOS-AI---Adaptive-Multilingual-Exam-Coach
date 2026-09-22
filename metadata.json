@@ -1,6 +1,6 @@
 {
-  "name": "StudyOS AI - Adaptive Multilingual Exam Coach",
-  "description": "AI-powered adaptive learning, spaced repetition, multilingual concept mastery, and apprentice educator teaching practice studio with campus micro-teaching reels and peer judging.",
+  "name": "StudyOS AI - Adaptive Learning & AksharSetu FLN",
+  "description": "Comprehensive AI-powered adaptive learning, exam preparation, and AksharSetu ambient multi-dialect pedagogical assistant for foundational classrooms.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

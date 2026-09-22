@@ -6,6 +6,7 @@
  */
 
 import { UserProfile, ConceptMastery, StudentDNA } from '../types';
+import { clearAllSessionCookies, setCookie } from './cookieUtils';
 
 export interface ReactStateBranches {
   setProfile: (profile: UserProfile) => void;
@@ -97,12 +98,38 @@ export class SessionSentinel {
           key.startsWith('studyos_course_session_') ||
           key.startsWith('studyos_last_course_session_') ||
           key.startsWith('active_quiz_') ||
-          key.includes('auth_pending')
+          key.includes('auth_pending') ||
+          key === 'studyos_session_token' ||
+          key === 'studyos_session_token_id' ||
+          key === 'studyos_remember_me' ||
+          key === 'studyos_auth_snapshot' ||
+          key === 'studyos_active_profile_backup' ||
+          key === 'studyos_active_email' ||
+          key === 'studyos_active_tab'
         ) {
           localStorage.removeItem(key);
           purgedKeys.push(key);
         }
       }
+
+      // Explicitly remove all primary token keys to guarantee zero residue
+      const MANDATORY_TOKEN_KEYS = [
+        'studyos_session_token',
+        'studyos_session_token_id',
+        'studyos_remember_me',
+        'studyos_auth_snapshot',
+        'studyos_active_profile_backup',
+        'studyos_active_email',
+        'studyos_active_tab',
+      ];
+      for (const tokKey of MANDATORY_TOKEN_KEYS) {
+        localStorage.removeItem(tokKey);
+        purgedKeys.push(tokKey);
+      }
+
+      // Mark explicit guest state in localStorage and cookie
+      localStorage.setItem('studyos_explicit_guest', 'true');
+      setCookie('studyos_explicit_guest', 'true', 365);
 
       // Reset active student pointer to guest
       localStorage.setItem('studyos_active_student_id', 'guest_student');
@@ -159,8 +186,13 @@ export class SessionSentinel {
     reactBranches: ReactStateBranches;
     onComplete?: () => void;
   }): { success: boolean; purgedKeys: string[] } {
+    // 1. Wipe all local storage session tokens and partition data
     const purgedKeys = this.purgeLocalStorage(params.studentId);
+    // 2. Wipe sessionStorage
     this.purgeSessionStorage();
+    // 3. Simultaneously delete all session cookies from browser
+    clearAllSessionCookies();
+    // 4. Reset React state branches to pristine guest memory
     this.resetReactStateBranches(params.reactBranches);
 
     if (typeof window !== 'undefined') {

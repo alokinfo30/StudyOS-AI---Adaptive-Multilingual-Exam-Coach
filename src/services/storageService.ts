@@ -127,9 +127,26 @@ export function clearSessionToken(): void {
     localStorage.removeItem(SESSION_TOKEN_KEY);
     sessionStorage.removeItem(SESSION_TOKEN_KEY);
     localStorage.removeItem('studyos_remember_me');
+    localStorage.removeItem('studyos_session_token_id');
+    localStorage.removeItem('studyos_auth_snapshot');
+    localStorage.removeItem('studyos_active_profile_backup');
+    localStorage.removeItem('studyos_active_email');
+    localStorage.removeItem('studyos_active_tab');
     removeTieredStorage('studyos_session_token_id');
     removeTieredStorage(SESSION_TOKEN_KEY);
+    removeTieredStorage('studyos_auth_snapshot');
+    removeTieredStorage('studyos_active_profile_backup');
+    removeTieredStorage('studyos_active_email');
+    deleteCookie('studyos_session');
+    deleteCookie('studyos_active_email');
+    deleteCookie('studyos_active_student_id');
+    deleteCookie('studyos_session_token_id');
+    deleteCookie('studyos_session_token');
     idbDelete(SESSION_TOKEN_KEY);
+    idbDelete('studyos_session_token_id');
+    idbDelete('studyos_active_student_id');
+    idbDelete('studyos_active_profile_backup');
+    idbDelete('studyos_auth_snapshot');
   } catch (e) {}
 }
 
@@ -460,22 +477,7 @@ export function getActiveStudentId(): string {
       const accounts = loadStudentAccounts();
       const match = accounts.find((a) => a.email && a.email.toLowerCase() === cookieEmail.toLowerCase());
       if (match) {
-        setActiveStudentId(match.id);
         return match.id;
-      }
-    }
-  } catch (e) {}
-
-  // 6. Fallback: If user has an authenticated account and did NOT explicitly click "Sign Out",
-  // do NOT reset them to guest_student! Keep them logged in as their authenticated student account.
-  try {
-    const explicitGuest = localStorage.getItem('studyos_explicit_guest') || getCookie('studyos_explicit_guest');
-    if (!explicitGuest) {
-      const accounts = loadStudentAccounts();
-      const authenticated = accounts.find((a) => a.authProvider && a.authProvider !== 'guest' && Boolean(a.email));
-      if (authenticated) {
-        setActiveStudentId(authenticated.id);
-        return authenticated.id;
       }
     }
   } catch (e) {}

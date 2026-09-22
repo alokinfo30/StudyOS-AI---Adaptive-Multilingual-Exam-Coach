@@ -46,9 +46,30 @@ export function deleteCookie(name: string): void {
   try {
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const secureFlag = isHttps ? '; Secure' : '';
-    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax${secureFlag}`;
+    document.cookie = `${name}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax${secureFlag}`;
+    document.cookie = `${name}=; Max-Age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
   } catch (e) {
     console.warn('[CookieUtils] Failed to delete cookie:', name, e);
+  }
+}
+
+/**
+ * Invalidate and wipe all StudyOS session cookies simultaneously
+ */
+export function clearAllSessionCookies(): void {
+  const SESSION_COOKIE_NAMES = [
+    'studyos_session',
+    'studyos_active_email',
+    'studyos_active_student_id',
+    'studyos_session_token_id',
+    'studyos_session_token',
+    'studyos_auth_snapshot',
+    'studyos_active_profile_backup',
+    'studyos_active_tab',
+  ];
+
+  for (const name of SESSION_COOKIE_NAMES) {
+    deleteCookie(name);
   }
 }
 

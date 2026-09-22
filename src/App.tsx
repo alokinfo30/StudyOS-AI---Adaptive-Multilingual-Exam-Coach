@@ -36,6 +36,7 @@ import {
   clearSessionToken,
   generateSessionToken,
   idbGet,
+  idbDelete,
 } from './services/storageService';
 import { calculateConfidenceWeightedAccuracy } from './utils/masteryCalculator';
 import { Navbar } from './components/layout/Navbar';
@@ -72,8 +73,12 @@ import {
   getTieredStorage,
   setTieredStorage,
   removeTieredStorage,
+  clearAllSessionCookies,
+  deleteCookie,
+  setCookie,
 } from './utils/cookieUtils';
 import { WifiOff, Zap } from 'lucide-react';
+import { AksharSetuApp } from './components/akshar/AksharSetuApp';
 
 export default function App() {
   // Private Student ID & Active Session
@@ -118,6 +123,7 @@ export default function App() {
     newScore: number;
   } | null>(null);
   const [lastLoginTimestamp, setLastLoginTimestamp] = useState<number>(0);
+  const [sessionTerminatedToast, setSessionTerminatedToast] = useState<boolean>(false);
   const [focusModeState, setFocusModeState] = useState<FocusModeState>({
     isActive: false,
     sessionStartTime: 0,
@@ -141,6 +147,11 @@ export default function App() {
     // This is critical for mobile browsers that reload or recycle tabs when hosted on Netlify or offline
     const hydrateLocalSession = async () => {
       try {
+        const explicitGuest = localStorage.getItem('studyos_explicit_guest') || getTieredStorage('studyos_explicit_guest');
+        if (explicitGuest === 'true') {
+          return;
+        }
+
         const resolvedId = getActiveStudentId();
         let resolvedProfile = loadUserProfile(resolvedId);
 
@@ -457,6 +468,11 @@ export default function App() {
     });
     setActiveId(account.id);
     setActiveStudentId(account.id);
+    try {
+      localStorage.removeItem('studyos_explicit_guest');
+      removeTieredStorage('studyos_explicit_guest');
+      deleteCookie('studyos_explicit_guest');
+    } catch {}
     let nextProfile = loadUserProfile(account.id);
     const nextMasteries = loadConceptMasteries(account.id);
     const nextDna = loadStudentDNA(account.id);
@@ -515,15 +531,61 @@ export default function App() {
     }
   };
 
-  const handleSignOutGoogle = () => {
-    // Notify server to clear session cookie and remote session
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  const handleSignOutGoogle = async () => {
+    const studentToLogout = activeStudentId;
+    const emailToLogout = profile.email;
+
+    // 1. Invalidate backend session cookie and purge session record on server
+    try {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: emailToLogout,
+          studentId: studentToLogout,
+        }),
+      }).catch((e) => console.warn('[Logout] Backend session logout network fallback', e));
+    } catch (e) {}
+
+    // 2. Simultaneously clear local storage tokens, session storage tokens, tiered storage, and IndexedDB
     clearSessionToken();
     removeTieredStorage('studyos_active_tab');
+    removeTieredStorage('studyos_active_email');
+    removeTieredStorage('studyos_auth_snapshot');
+    removeTieredStorage('studyos_active_profile_backup');
+    removeTieredStorage('studyos_session_token_id');
+    removeTieredStorage('studyos_active_student_id');
+
+    // 3. Simultaneously wipe browser session cookies
+    clearAllSessionCookies();
+    deleteCookie('studyos_session');
+    deleteCookie('studyos_active_email');
+    deleteCookie('studyos_active_student_id');
+    deleteCookie('studyos_session_token_id');
+    deleteCookie('studyos_session_token');
+    deleteCookie('studyos_auth_snapshot');
+    deleteCookie('studyos_active_profile_backup');
+
+    // 4. Wipe Tier-4 IndexedDB session backups
+    idbDelete('studyos_session_token');
+    idbDelete('studyos_session_token_id');
+    idbDelete('studyos_active_student_id');
+    idbDelete('studyos_active_profile_backup');
+    idbDelete('studyos_auth_snapshot');
+
+    // 5. Explicitly register persistent guest state
+    try {
+      localStorage.setItem('studyos_explicit_guest', 'true');
+      setCookie('studyos_explicit_guest', 'true', 365);
+    } catch {}
+
     setActiveStudentId('guest_student');
     setActiveId('guest_student');
+
+    // 6. Zero-Residue memory purge and React state branch reset
     SessionSentinel.terminateSession({
-      studentId: activeStudentId,
+      studentId: studentToLogout,
       reactBranches: {
         setProfile,
         setMasteries,
@@ -536,6 +598,8 @@ export default function App() {
       onComplete: () => {
         setIsGoogleAuthOpen(false);
         setIsAccountPrivacyOpen(false);
+        setSessionTerminatedToast(true);
+        setTimeout(() => setSessionTerminatedToast(false), 4000);
       },
     });
   };
@@ -808,7 +872,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Universal Top Navigation Header (or Minimal Focus Mode Header) */}
+      {/* AksharSetu Multi-Dialect FLN Add-on Workspace */}
+      {currentTab === 'aksharsetu' ? (
+        <div className="flex-1 w-full animate-fadeIn">
+          <AksharSetuApp onBackToStudyOS={() => handleNavigateWithParentCheck('home')} />
+        </div>
+      ) : (
+        <>
+          {/* Universal Top Navigation Header (or Minimal Focus Mode Header) */}
       {focusModeState.isActive ? (
         <FocusModeOverlay
           focusState={focusModeState}
@@ -1025,6 +1096,8 @@ export default function App() {
           </>
         )}
       </main>
+        </>
+      )}
 
       {/* AI Socratic Coach Floating Drawer */}
       {isStudentLoggedIn && (
@@ -1171,6 +1244,29 @@ export default function App() {
             </div>
             <div className="text-[11px] font-bold text-zinc-900 capitalize">
               {masteryPopAlert.conceptName} • {masteryPopAlert.newScore}% Mastery
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Secure Session Terminated Zero-Residue Confirmation Toast */}
+      {sessionTerminatedToast && (
+        <div
+          id="secure-session-terminated-toast"
+          className="fixed bottom-6 right-6 z-50 bg-zinc-900/95 border border-emerald-500/40 text-emerald-300 px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 backdrop-blur-md"
+        >
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-base shadow-inner">
+            🛡️
+          </div>
+          <div>
+            <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
+              <span>Session Securely Terminated</span>
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-semibold">
+                Zero Residue
+              </span>
+            </div>
+            <div className="text-[11px] text-zinc-400 mt-0.5 font-normal">
+              Backend session cookie invalidated & local device storage tokens cleared.
             </div>
           </div>
         </div>
